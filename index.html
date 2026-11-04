@@ -77,7 +77,7 @@ table.ls tr.row:hover td{background:#fffaf0}
 .demo{background:#fff4d6;color:var(--warn);text-align:center;font-size:13px;padding:6px}
 .b-off{background:#eee;color:var(--mute)}
 table.ls.nolink td{cursor:default}table.ls.nolink tr.row:hover td{background:#fff}
-.codebox{font-size:40px;letter-spacing:.3em;font-weight:800;text-align:center;background:#fff4d6;border-radius:22px;padding:20px 8px 20px 20px;margin:16px 0;font-variant-numeric:tabular-nums;user-select:all}
+.codebox{font-size:34px;letter-spacing:.3em;font-weight:800;text-align:center;background:#fff4d6;border-radius:22px;padding:20px 8px 20px 20px;margin:16px 0;font-variant-numeric:tabular-nums;user-select:all}
 @media(max-width:1100px){.ed{grid-template-columns:1fr}.pvwrap{position:static}.grid3{grid-template-columns:1fr 1fr}}
 @media(max-width:640px){.line .r1,.line .r1.m,.line .r3,.grid2,.grid3{grid-template-columns:1fr 1fr}main{padding:14px}}
 </style>
@@ -133,7 +133,7 @@ function renderQuote(q, assets) {
   var logo = assets.logo
     ? '<img src="' + assets.logo + '" style="height:15mm;display:block">'
     : '<div style="display:inline-block;background:#4a4a4a;padding:3mm 4mm;color:#fff;font-size:13pt;letter-spacing:.05em;line-height:1">Sincerity <span style="background:#f2c200;color:#333;padding:1mm 2mm;margin-left:2mm">晨諾創意</span></div>';
-  var head = '<table class="top"><colgroup><col style="width:100mm"><col style="width:90mm"></colgroup><tr><td>' + logo + '</td><td class="ttl">報價單</td></tr></table><div style="height:6mm"></div>';
+  var head = '<table class="top"><colgroup><col style="width:100mm"><col style="width:90mm"></colgroup><tr><td>' + logo + '</td><td class="ttl">報價單' + (q.status === '已作廢' ? '<div style="font-size:11pt;letter-spacing:.1em;color:#c0392b;margin-top:1mm">已作廢</div>' : '') + '</td></tr></table><div style="height:6mm"></div>';
 
   /* ---- 表頭資料區 ---- */
   var hd;
@@ -225,6 +225,7 @@ function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').repla
 function $(s, r) { return (r || document).querySelector(s); }
 function money(n) { return '$' + Number(n || 0).toLocaleString('en-US'); }
 function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function bcls(st) { return st === '已鎖定' ? 'b-lock' : st === '已作廢' ? 'b-off' : 'b-draft'; }
 function rnd(x) { return Math.round(Number(Number(x).toFixed(6))); }
 function toast(msg, ms) { document.querySelectorAll('.toast').forEach(function (x) { x.remove(); }); var t = document.createElement('div'); t.className = 'toast'; t.innerHTML = msg; document.body.appendChild(t); setTimeout(function () { t.remove(); }, ms || 2600); }
 var timer; function debounce(fn, ms) { clearTimeout(timer); timer = setTimeout(fn, ms); }
@@ -245,9 +246,10 @@ var DT = [
   { title: '活動類製作前金', body: '/活動類製作前金/\n1.簽回此份報價單後，本公司即開始進行執行籌備作業，並同時開立執行專案前金50%發票，向客戶進行請款動作；硬體交件後，開立剩餘尾款之50%\n2.本公司非經同意不得將此授權(等相關活動內容)之一部分或全部轉移第三人，惟第三人補法取得使用致損害發生，概與本公司無關' },
   { title: '本估價單確認回簽後視同合約', body: '/本估價單確認回簽後視同合約/\n1.此估價單開立後三天有效，以上估價單確認回簽後，甲乙雙方均應依估價單付款履約。\n2.初次合作客戶，需先付50%費用。\n3.報價單以月結制，月結30天，每月25號請款開發票，再請知悉。\n4.本案件完成後，餘款匯款完成，會在將提供完整檔案給客戶。' }];
 var DEMO_DB = null;
+function demoCode() { var c = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', s = ''; for (var i = 0; i < 8; i++) s += c.charAt(Math.floor(Math.random() * c.length)); return s; }
 function demoInit() {
   var kinds = ['活動類', '印刷類', '設計類', '施工工程類', '系統資訊類'], terms = [];
-  kinds.forEach(function (k) { DT.forEach(function (t, i) { terms.push({ 案型: k, 排序: i + 1, 標題: t.title, 內容: t.body, 預設勾選: true }); }); });
+  kinds.forEach(function (k) { DT.forEach(function (t, i) { terms.push({ 案型: k, 排序: i + 1, 標題: t.title, 內容: t.body, 預設勾選: true, 條款ID: 'T' + k + i }); }); });
   DEMO_DB = {
     users: [{ email: 'demo', name: '示範帳號', role: '老闆', status: '啟用' }],
     kinds: kinds, terms: terms, quotes: {},
@@ -278,9 +280,15 @@ function demoApi(act, d) {
     q.status = '草稿'; q.signed = false; calc(q); db.quotes[q.no] = q; return { ok: true, quote: q };
   }
   if (act === 'lockQuote') { q = db.quotes[d.no]; q.status = '已鎖定'; q.signed = true; q.agencyDate = today(); return { ok: true, quote: q }; }
+  if (act === 'voidQuote') {
+    var o = db.quotes[d.no]; if (!o || o.status !== '已鎖定') return { ok: false, msg: '只有已鎖定的報價單需要作廢' }; if (!String(d.reason || '').trim()) return { ok: false, msg: '請填寫作廢原因' };
+    var base = d.no.replace(/-R\d+$/, ''), n = 0; Object.keys(db.quotes).forEach(function (k) { var m = k.match(/-R(\d+)$/); if (m && k.indexOf(base + '-R') === 0) n = Math.max(n, +m[1]); });
+    o.status = '已作廢'; o.voidReason = d.reason; o.signed = false; q = JSON.parse(JSON.stringify(o)); q.no = base + '-R' + (n + 1); q.status = '草稿'; q.voidReason = ''; q.replaces = d.no; q.pdf = '';
+    db.quotes[q.no] = q; return { ok: true, voided: d.no, quote: JSON.parse(JSON.stringify(q)) };
+  }
   if (act === 'pdf') return { ok: false, msg: '示範模式不會存到雲端硬碟，請改用「列印／另存 PDF」' };
-  if (act === 'saveRow') { var t = tbl[d.table], key = { customers: '客戶編號', items: '商品編號' }[d.table], arr = db[t], i = key ? arr.findIndex(function (r) { return r[key] === d.row[key]; }) : (d.row._row != null ? d.row._row : -1); if (i >= 0) arr[i] = d.row; else arr.push(d.row); return { ok: true, rows: arr }; }
-  if (act === 'delRow') { var t2 = tbl[d.table], key2 = { customers: '客戶編號', items: '商品編號' }[d.table], arr2 = db[t2]; var j = key2 ? arr2.findIndex(function (r) { return r[key2] === d.key; }) : +d.key; if (j >= 0) arr2.splice(j, 1); return { ok: true, rows: arr2 }; }
+  if (act === 'saveRow') { var t = tbl[d.table], key = { customers: '客戶編號', items: '商品編號', terms: '條款ID' }[d.table], arr = db[t]; if (t === 'terms' && !d.row[key]) d.row[key] = 'T' + Date.now(); var i = arr.findIndex(function (r) { return r[key] === d.row[key]; }); if (i >= 0) arr[i] = d.row; else arr.push(d.row); return { ok: true, rows: arr }; }
+  if (act === 'delRow') { var t2 = tbl[d.table], key2 = { customers: '客戶編號', items: '商品編號', terms: '條款ID' }[d.table], arr2 = db[t2]; var j = arr2.findIndex(function (r) { return r[key2] === d.key; }); if (j >= 0) arr2.splice(j, 1); return { ok: true, rows: arr2 }; }
   var du = function () { return db.users.map(function (u) { return Object.assign({}, u); }); };
   if (act === 'listUsers') return { ok: true, rows: du() };
   if (act === 'addUser') {
@@ -289,14 +297,14 @@ function demoApi(act, d) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return { ok: false, msg: 'Email 格式有誤' };
     if (db.users.some(function (u) { return u.email === em; })) return { ok: false, msg: '這個 Email 已經建立過' };
     db.users.push({ email: em, name: nm, role: d.role === '老闆' ? '老闆' : '財務', status: '啟用' });
-    return { ok: true, code: String(Math.floor(100000 + Math.random() * 900000)), rows: du() };
+    return { ok: true, code: demoCode(), rows: du() };
   }
   if (act === 'setUserStatus' || act === 'resetUserCode') {
     var tu = db.users.filter(function (u) { return u.email === String(d.email).toLowerCase(); })[0];
     if (!tu) return { ok: false, msg: '找不到這位人員' };
     if (tu.email === 'demo') return { ok: false, msg: act === 'setUserStatus' ? '無法變更自己的狀態' : '老闆自己的綁定碼請從試算表選單「② 重設老闆綁定碼」重設' };
     if (act === 'setUserStatus') { tu.status = d.status === '停用' ? '停用' : '啟用'; return { ok: true, rows: du() }; }
-    return { ok: true, code: String(Math.floor(100000 + Math.random() * 900000)), rows: du() };
+    return { ok: true, code: demoCode(), rows: du() };
   }
   return { ok: false, msg: '未知動作' };
 }
@@ -334,7 +342,7 @@ function render() {
   if (!S.token || !S.user) {
     app.innerHTML = '<div class="login"><div class="lcard"><div class="brand"><b>Sincerity</b><i>晨諾創意</i></div><h2>內帳系統</h2><p>新裝置第一次登入輸入綁定碼，之後不再詢問。</p>' +
       '<label class="f">Email</label><input class="in" id="lg_email" type="email" autocomplete="username"><div style="height:12px"></div>' +
-      '<label class="f">綁定碼</label><input class="in" id="lg_code" type="password" autocomplete="current-password"><div style="height:20px"></div>' +
+      '<label class="f">綁定碼</label><input class="in" id="lg_code" type="password" autocomplete="current-password" autocapitalize="characters" placeholder="8 碼英數字"><div style="height:20px"></div>' +
       '<button class="btn pri" id="lg_btn" style="width:100%" data-act="login">登入</button></div></div>';
     return;
   }
@@ -353,11 +361,11 @@ function renderQuotes() {
     .sort(function (a, b) { return String(b['報價單號']).localeCompare(String(a['報價單號'])); });
   var canW = S.user.role === '老闆';
   $('#main').innerHTML = '<div class="bar"><input class="in" id="qs" placeholder="搜尋報價單號、客戶、專案名稱" value="' + esc(S.q) + '"><div class="chips">' +
-    ['全部', '草稿', '已鎖定'].map(function (c) { return '<button class="chip' + (S.filter === c ? ' on' : '') + '" data-act="filter" data-v="' + c + '">' + c + '</button>'; }).join('') +
+    ['全部', '草稿', '已鎖定', '已作廢'].map(function (c) { return '<button class="chip' + (S.filter === c ? ' on' : '') + '" data-act="filter" data-v="' + c + '">' + c + '</button>'; }).join('') +
     '</div><div style="flex:1"></div>' + (canW ? '<button class="btn pri" data-act="newq">＋ 新增報價單</button>' : '') + '</div>' +
     (list.length ? '<table class="ls"><tr><th>報價單號</th><th>日期</th><th>客戶</th><th>專案名稱</th><th class="num">總金額</th><th>狀態</th><th></th></tr>' +
       list.map(function (r) {
-        return '<tr class="row" data-act="open" data-no="' + esc(r['報價單號']) + '"><td><b>' + esc(r['報價單號']) + '</b></td><td>' + esc(String(r['報價日期']).replace(/-/g, '/')) + '</td><td>' + esc(r['公司']) + '</td><td>' + esc(r['專案名稱']) + '</td><td class="num">' + money(r['總金額']) + '</td><td><span class="badge ' + (r['狀態'] === '已鎖定' ? 'b-lock' : 'b-draft') + '">' + esc(r['狀態']) + '</span></td><td>' + (canW ? '<button class="btn sm" data-act="copyq" data-no="' + esc(r['報價單號']) + '">複製</button>' : '') + '</td></tr>';
+        return '<tr class="row" data-act="open" data-no="' + esc(r['報價單號']) + '"><td><b>' + esc(r['報價單號']) + '</b></td><td>' + esc(String(r['報價日期']).replace(/-/g, '/')) + '</td><td>' + esc(r['公司']) + '</td><td>' + esc(r['專案名稱']) + '</td><td class="num">' + money(r['總金額']) + '</td><td><span class="badge ' + bcls(r['狀態']) + '">' + esc(r['狀態']) + '</span></td><td>' + (canW ? '<button class="btn sm" data-act="copyq" data-no="' + esc(r['報價單號']) + '">複製</button>' : '') + '</td></tr>';
       }).join('') + '</table>' : '<div class="card empty">還沒有報價單，按右上角「新增報價單」開始。</div>');
   var qs = $('#qs'); if (qs) qs.addEventListener('input', function () { S.q = qs.value; var p = qs.selectionStart; debounce(function () { renderQuotes(); var n = $('#qs'); n.focus(); n.setSelectionRange(p, p); }, 200); });
 }
@@ -366,7 +374,7 @@ function renderQuotes() {
 var CFG = {
   customers: { title: '客戶資料', key: '客戶編號', cols: ['客戶編號', '類型', '公司', '聯絡人', '電話'], fields: [['客戶編號', 'text'], ['類型', 'select', ['梅科', '一般']], ['公司', 'text'], ['統編', 'text'], ['聯絡人', 'text'], ['E-mail', 'text'], ['電話', 'text'], ['地址', 'text'], ['備註', 'textarea']] },
   items: { title: '收費明細', key: '商品編號', cols: ['商品編號', '產品', '項目名稱', '單價', '單位'], fields: [['商品編號', 'text'], ['產品', 'text'], ['項目名稱', 'text'], ['規格內容', 'textarea'], ['單價', 'number'], ['單位', 'text']] },
-  terms: { title: '條款庫', key: null, cols: ['案型', '排序', '標題'], fields: [['案型', 'select', 'KINDS'], ['排序', 'number'], ['標題', 'text'], ['內容', 'textarea', 8], ['預設勾選', 'check']] }
+  terms: { title: '條款庫', key: '條款ID', auto: true, cols: ['案型', '排序', '標題'], fields: [['案型', 'select', 'KINDS'], ['排序', 'number'], ['標題', 'text'], ['內容', 'textarea', 8], ['預設勾選', 'check']] }
 };
 function renderMaster(t) {
   var c = CFG[t], rows = S[t].map(function (r, i) { r._i = i; return r; }).filter(function (r) { return !S.mq || JSON.stringify(r).toLowerCase().indexOf(S.mq.toLowerCase()) >= 0; });
@@ -389,12 +397,11 @@ function openModal(t, row) {
 function msave(t) {
   var c = CFG[t], row = Object.assign({}, window.__mrow);
   document.querySelectorAll('#md [data-mk]').forEach(function (el) { row[el.dataset.mk] = el.type === 'checkbox' ? el.checked : (el.type === 'number' && el.value !== '' ? Number(el.value) : el.value); });
-  if (c.key && !row[c.key]) return toast('請填寫' + c.key);
-  if (t === 'terms') row._row = window.__mrow._row != null ? window.__mrow._row : (DEMO ? window.__mrow._i : undefined);
+  if (c.key && !c.auto && !row[c.key]) return toast('請填寫' + c.key);
   api('saveRow', { table: t, row: row }).then(function (r) { if (!r.ok) return toast(esc(r.msg)); S[t] = r.rows; $('#md').remove(); render(); toast('已儲存'); });
 }
 function mdel(t) {
-  if (!confirm('確定刪除？')) return; var r = window.__mrow, key = CFG[t].key ? r[CFG[t].key] : (DEMO ? r._i : r._row);
+  if (!confirm('確定刪除？')) return; var r = window.__mrow, key = r[CFG[t].key];
   api('delRow', { table: t, key: key }).then(function (x) { if (!x.ok) return toast(esc(x.msg)); S[t] = x.rows; $('#md').remove(); render(); });
 }
 
@@ -471,14 +478,15 @@ function copyPrev() {
   if (!prev) return toast('這位客戶還沒有報價單可複製');
   api('getQuote', { no: prev['報價單號'] }).then(function (r) { if (!r.ok) return toast(esc(r.msg)); var q = r.quote; E.lines = q.lines; E.kind = q.kind || E.kind; E.project = q.project; E.terms = (q.terms || []).map(function (t) { t.on = true; return t; }); calc(E); renderEditor(); toast('已帶入 ' + esc(q.no) + ' 的內容，請確認專案名稱、數量與金額'); });
 }
-function ro() { return E.status === '已鎖定' || S.user.role !== '老闆'; }
+function ro() { return E.status !== '草稿' || S.user.role !== '老闆'; }
 function renderEditor() {
   var locked = ro(), custOpts = '<option value="">— 選擇客戶 —</option>' + S.customers.map(function (c) { return '<option value="' + esc(c['客戶編號']) + '"' + (c['客戶編號'] === E.custNo ? ' selected' : '') + '>' + esc(c['客戶編號'] + '　' + c['公司']) + '</option>'; }).join('');
   var kindOpts = '<option value="">— 選擇案型 —</option>' + S.kinds.map(function (k) { return '<option' + (k === E.kind ? ' selected' : '') + '>' + k + '</option>'; }).join('');
-  $('#main').innerHTML = '<div class="bar"><button class="btn" data-act="back">← 返回列表</button><b style="font-size:17px">' + esc(E.no || '新報價單（儲存後產生編號）') + '</b><span class="badge ' + (E.status === '已鎖定' ? 'b-lock' : 'b-draft') + '">' + esc(E.status) + '</span><span class="badge" style="background:#eee">' + (E.ver === 'M' ? '梅科版' : '一般版') + '</span><div style="flex:1"></div>' +
+  $('#main').innerHTML = '<div class="bar"><button class="btn" data-act="back">← 返回列表</button><b style="font-size:17px">' + esc(E.no || '新報價單（儲存後產生編號）') + '</b><span class="badge ' + bcls(E.status) + '">' + esc(E.status) + '</span><span class="badge" style="background:#eee">' + (E.ver === 'M' ? '梅科版' : '一般版') + '</span><div style="flex:1"></div>' +
     '<button class="btn" data-act="print">列印／另存 PDF</button>' +
-    (E.status === '已鎖定' ? '<button class="btn" data-act="copycur">複製為新報價</button>' + (E.pdf ? '<a class="btn" target="_blank" href="' + esc(E.pdf) + '">開啟雲端 PDF</a>' : '') + '<button class="btn dark" data-act="pdf">產出 PDF 存雲端硬碟</button>' :
+    (E.status !== '草稿' ? (S.user.role === '老闆' ? '<button class="btn" data-act="copycur">複製為新報價</button>' : '') + (E.pdf ? '<a class="btn" target="_blank" href="' + esc(E.pdf) + '">開啟雲端 PDF</a>' : '') + (S.user.role === '老闆' ? '<button class="btn dark" data-act="pdf">產出 PDF 存雲端硬碟</button>' + (E.status === '已鎖定' ? '<button class="btn" data-act="void">作廢並重開</button>' : '') : '') :
       (S.user.role === '老闆' ? '<button class="btn" data-act="save">儲存草稿</button><button class="btn pri" data-act="lock">送出並鎖定</button>' : '')) + '</div>' +
+    ((E.replaces || E.voidReason) ? '<div class="card" style="padding:12px 18px;margin-bottom:14px;font-size:14px;color:var(--mute)">' + (E.replaces ? '這張是重開單，取代 <b>' + esc(E.replaces) + '</b>　' : '') + (E.voidReason ? '已作廢，原因：' + esc(E.voidReason) : '') + '</div>' : '') +
     '<div class="ed"><div><fieldset ' + (locked ? 'disabled' : '') + ' style="border:0;margin:0;padding:0;min-width:0">' +
     '<div class="card sec"><h3>基本資料' + (locked ? '' : '<button class="btn sm" data-act="copyprev" type="button">複製這位客戶的上一張</button>') + '</h3><div class="grid2"><div><label class="f">客戶</label><select class="in" id="f_cust">' + custOpts + '</select></div><div><label class="f">案型</label><select class="in" id="f_kind">' + kindOpts + '</select></div>' +
     '<div style="grid-column:1/-1"><label class="f">專案名稱</label><input class="in" data-k="project" value="' + esc(E.project) + '"></div>' +
@@ -532,8 +540,25 @@ function saveQ(then) {
   });
 }
 function doPdf() {
-  var html = renderQuote(previewData(), S.assets), btn = $('[data-act=pdf]'); if (btn) { btn.disabled = true; btn.textContent = '產出中…'; }
-  api('pdf', { no: E.no, html: html }).then(function (r) { if (!r.ok) { toast(esc(r.msg), 4000); return renderEditor(); } E.pdf = r.url; renderEditor(); toast('PDF 已存到雲端硬碟　<a target="_blank" href="' + esc(r.url) + '">開啟</a>', 6000); });
+  var btn = $('[data-act=pdf]'); if (btn) { btn.disabled = true; btn.textContent = '產出中…'; }
+  api('pdf', { no: E.no }).then(function (r) { if (!r.ok) { toast(esc(r.msg), 4000); return renderEditor(); } E.pdf = r.url; renderEditor(); toast('PDF 已存到雲端硬碟　<a target="_blank" href="' + esc(r.url) + '">開啟</a>', 6000); });
+}
+
+function openVoid() {
+  var d = document.createElement('div');
+  d.innerHTML = '<div class="modal" id="md"><div class="mbox"><h3>作廢並重開 ' + esc(E.no) + '</h3><div style="color:var(--mute);font-size:13.5px">原單會標示「已作廢」並保留紀錄，系統另開一張內容相同的新草稿（編號 ' + esc(String(E.no).replace(/-R\d+$/, '')) + '-R…），改好後再鎖定。</div>' +
+    '<div class="fld" style="margin-top:14px"><label class="f">作廢原因（必填）</label><textarea class="in" id="v_reason" rows="3" placeholder="例如：客戶追加數量、單價調整"></textarea></div>' +
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button class="btn" data-act="mclose">取消</button><button class="btn pri" data-act="vsave">確認作廢並開新草稿</button></div></div></div>';
+  document.body.appendChild(d.firstChild);
+}
+function vsave() {
+  var reason = $('#v_reason').value.trim(); if (!reason) return toast('請填寫作廢原因');
+  var btn = $('[data-act=vsave]'); btn.disabled = true; var old = E.no;
+  api('voidQuote', { no: E.no, reason: reason }).then(function (r) {
+    if (!r || !r.ok) { btn.disabled = false; return toast(esc((r && r.msg) || '作廢失敗')); }
+    $('#md').remove(); E = r.quote; E.terms = (E.terms || []).map(function (t) { t.on = true; return t; }); E.bank = S.settings.bank;
+    api('boot').then(function (b) { if (b.ok) S.quotes = b.quotes; }); render(); toast(esc(old) + ' 已作廢，已開新草稿 ' + esc(E.no), 4000);
+  });
 }
 
 /* ============ 事件 ============ */
@@ -551,8 +576,9 @@ document.addEventListener('click', function (e) {
   else if (a === 'copycur') { var q = JSON.parse(JSON.stringify(E)); newQuote(q); toast('已複製為新報價，請確認內容'); }
   else if (a === 'reloadterms') { if (!E.kind) return toast('請先選擇案型'); loadTerms(E.kind); renderTerms(); refresh(); }
   else if (a === 'save') saveQ();
-  else if (a === 'lock') { if (!confirm('送出後內容會鎖定，確定嗎？')) return; saveQ(function () { api('lockQuote', { no: E.no }).then(function (r) { if (!r.ok) return toast(esc(r.msg)); E = r.quote; E.terms = (E.terms || []).map(function (x) { x.on = true; return x; }); E.bank = S.settings.bank; api('boot').then(function (b) { if (b.ok) S.quotes = b.quotes; }); renderEditor(); if (DEMO) toast('已鎖定（示範模式請用「列印／另存 PDF」）'); else doPdf(); }); }); }
+  else if (a === 'lock') { if (!confirm('送出後內容會鎖定，確定嗎？')) return; saveQ(function () { api('lockQuote', { no: E.no, version: E.version }).then(function (r) { if (!r.ok) return toast(esc(r.msg)); E = r.quote; E.terms = (E.terms || []).map(function (x) { x.on = true; return x; }); E.bank = S.settings.bank; api('boot').then(function (b) { if (b.ok) S.quotes = b.quotes; }); renderEditor(); if (DEMO) toast('已鎖定（示範模式請用「列印／另存 PDF」）'); else doPdf(); }); }); }
   else if (a === 'pdf') doPdf();
+  else if (a === 'void') openVoid(); else if (a === 'vsave') vsave();
   else if (a === 'print') { var f = $('#pv'); f.contentWindow.focus(); f.contentWindow.print(); }
   else if (a === 'mnew') openModal(t.dataset.t); else if (a === 'medit') openModal(t.dataset.t, S[t.dataset.t][+t.dataset.i]);
   else if (a === 'mclose') $('#md').remove(); else if (a === 'msave') msave(t.dataset.t); else if (a === 'mdel') mdel(t.dataset.t);
