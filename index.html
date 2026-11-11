@@ -81,6 +81,14 @@ details.mk{margin-top:14px}details.mk summary{cursor:pointer;color:var(--mute);f
 .b-off{background:#eee;color:var(--mute)}
 table.ls.nolink td{cursor:default}table.ls.nolink tr.row:hover td{background:#fff}
 .codebox{font-size:34px;letter-spacing:.3em;font-weight:800;text-align:center;background:#fff4d6;border-radius:22px;padding:20px 8px 20px 20px;margin:16px 0;font-variant-numeric:tabular-nums;user-select:all}
+/* 第3棒 */
+.pill{display:inline-block;padding:3px 11px;border-radius:999px;font-size:12px;font-weight:600;background:#eee;color:#8d8880;white-space:nowrap}
+.p-ok{background:#e1f3ea;color:#3f9b6b}.p-warn{background:#fff4d6;color:#c98a00}.p-bad{background:#fde4e0;color:#c0392b}.p-mute{background:#eee;color:#8d8880}
+.mini{border:1.5px solid var(--line);background:#fcfbf9;border-radius:12px;padding:6px 10px;font-size:13px;outline:none;width:100%}
+.mini:focus{border-color:var(--gold);background:#fff}
+.invin{display:grid;grid-template-columns:118px 84px 128px 18px;gap:6px;align-items:center}.invin .st{font-size:13px;color:var(--mute)}
+.sc{overflow-x:auto}table.ls.wide td{white-space:nowrap}
+.line .r4.b3{grid-template-columns:1fr 1fr 1fr}
 @media(max-width:1100px){.ed{grid-template-columns:1fr}.pvwrap{position:static}.grid3{grid-template-columns:1fr 1fr}}
 @media(max-width:640px){.line .r1,.line .r1.m,.line .r3,.grid2,.grid3{grid-template-columns:1fr 1fr}main{padding:14px}}
 </style>
@@ -222,7 +230,7 @@ function renderQuote(q, assets) {
 
 
 /* ============ 小工具 ============ */
-var S = { vendors: [], users: [], token: '', user: null, assets: {}, settings: { bank: '', rate: .05 }, customers: [], items: [], terms: [], quotes: [], kinds: [], view: 'quotes', filter: '全部', q: '' };
+var S = { branches: [], mode: (function () { try { return localStorage.getItem('cn_mode') || 'all'; } catch (e) { return 'all'; } })(), vendors: [], users: [], token: '', user: null, assets: {}, settings: { bank: '', rate: .05 }, customers: [], items: [], terms: [], quotes: [], kinds: [], view: 'quotes', filter: '全部', q: '' };
 var E = null; // 目前編輯中的報價單
 var RENDERING = 0; // 重新繪製期間忽略 blur 連帶觸發的 change/input 事件
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
@@ -327,7 +335,7 @@ function start() {
 function boot() {
   api('boot').then(function (r) {
     if (!r || !r.ok) { if (r && r.code !== 'AUTH') toast(esc((r && r.msg) || '載入失敗')); return render(); }
-    S.user = r.user; S.assets = r.assets || {}; S.settings = r.settings; S.customers = r.customers; S.items = r.items; S.vendors = r.vendors || []; S.terms = r.terms; S.quotes = r.quotes; S.kinds = r.kinds;
+    S.user = r.user; S.assets = r.assets || {}; S.settings = r.settings; S.customers = r.customers; S.items = r.items; S.vendors = r.vendors || []; S.branches = r.branches || []; S.terms = r.terms; S.quotes = r.quotes; S.kinds = r.kinds;
     render();
   });
 }
@@ -351,36 +359,25 @@ function render() {
       '<button class="btn pri" id="lg_btn" style="width:100%" data-act="login">登入</button></div></div>';
     return;
   }
-  var tabs = [['quotes', '報價單'], ['customers', '客戶資料'], ['vendors', '廠商'], ['items', '收費明細'], ['terms', '條款庫']];
+  var tabs = [['quotes', '報價單'], ['billing', '月底請款'], ['pays', '收款']];
+  if (S.user.role === '老闆') tabs.push(['done', '完工彙總'], ['pack', '梅科請款包']);
+  tabs.push(['customers', '客戶資料'], ['branches', '分院'], ['vendors', '廠商'], ['items', '收費明細'], ['terms', '條款庫']);
   if (S.user.role === '老闆') tabs.push(['users', '人員']);
   app.innerHTML = (DEMO ? '<div class="demo">示範模式：資料只存在目前畫面，重新整理即回復。正式使用請在檔案開頭貼上 GAS 網址。</div>' : '') +
     '<div class="top"><div class="topin"><div class="brand"><b>Sincerity</b><i>晨諾創意</i></div><div class="tabs">' +
     tabs.map(function (t) { return '<button class="tab' + (S.view === t[0] && !E ? ' on' : '') + '" data-act="tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') +
     '</div><div class="who">' + esc(S.user.name) + '・' + esc(S.user.role) + (DEMO ? '' : '<button class="btn sm ghost" data-act="logout">登出</button>') + '</div></div></div><main id="main"></main>';
-  E ? renderEditor() : (S.view === 'quotes' ? renderQuotes() : S.view === 'users' ? renderUsers() : renderMaster(S.view));
+  E ? renderEditor() : (S.view === 'quotes' ? renderQuotes() : S.view === 'users' ? renderUsers() : S.view === 'billing' ? renderBilling() : S.view === 'pays' ? renderPays() : S.view === 'done' ? renderDone() : S.view === 'pack' ? renderPack() : renderMaster(S.view));
 }
 
-/* ---- 報價單列表 ---- */
-function renderQuotes() {
-  var list = S.quotes.filter(function (r) { return (S.filter === '全部' || r['狀態'] === S.filter) && (!S.q || JSON.stringify(r).toLowerCase().indexOf(S.q.toLowerCase()) >= 0); })
-    .sort(function (a, b) { return String(b['報價單號']).localeCompare(String(a['報價單號'])); });
-  var canW = S.user.role === '老闆';
-  $('#main').innerHTML = '<div class="bar"><input class="in" id="qs" placeholder="搜尋報價單號、客戶、專案名稱" value="' + esc(S.q) + '"><div class="chips">' +
-    ['全部', '草稿', '已鎖定', '已作廢'].map(function (c) { return '<button class="chip' + (S.filter === c ? ' on' : '') + '" data-act="filter" data-v="' + c + '">' + c + '</button>'; }).join('') +
-    '</div><div style="flex:1"></div>' + (canW ? '<button class="btn pri" data-act="newq">＋ 新增報價單</button>' : '') + '</div>' +
-    (list.length ? '<table class="ls"><tr><th>報價單號</th><th>日期</th><th>客戶</th><th>專案名稱</th><th class="num">總金額</th><th>狀態</th><th></th></tr>' +
-      list.map(function (r) {
-        return '<tr class="row" data-act="open" data-no="' + esc(r['報價單號']) + '"><td><b>' + esc(r['報價單號']) + '</b></td><td>' + esc(String(r['報價日期']).replace(/-/g, '/')) + '</td><td>' + esc(r['公司']) + '</td><td>' + esc(r['專案名稱']) + '</td><td class="num">' + money(r['總金額']) + '</td><td><span class="badge ' + bcls(r['狀態']) + '">' + esc(r['狀態']) + '</span>' + (r['發票'] === '免開發票' ? '<span class="tag">免開</span>' : r['發票'] === '待確認' ? '<span class="tag">發票待確認</span>' : '') + '</td><td>' + (canW ? '<button class="btn sm" data-act="copyq" data-no="' + esc(r['報價單號']) + '">複製</button>' : '') + '</td></tr>';
-      }).join('') + '</table>' : '<div class="card empty">還沒有報價單，按右上角「新增報價單」開始。</div>');
-  var qs = $('#qs'); if (qs) qs.addEventListener('input', function () { S.q = qs.value; var p = qs.selectionStart; debounce(function () { renderQuotes(); var n = $('#qs'); n.focus(); n.setSelectionRange(p, p); }, 200); });
-}
-
+/* ---- 報價單列表（新版在檔案後段） ---- */
 /* ---- 通用表單引擎（客戶／廠商／收費明細／條款庫） ---- */
 function canW(t) { return S.user.role === '老闆' || (S.user.role === '財務' && CFG[t] && CFG[t].fin); }
 var CFG = {
   customers: { title: '客戶資料', key: '客戶編號', fin: 1, cols: ['客戶編號', '類型', '公司', '客戶體系', '聯絡人', '電話'], fields: [['客戶編號', 'text'], ['類型', 'select', ['一般', '梅科']], ['公司', 'text'], ['客戶簡稱', 'text'], ['客戶體系', 'text'], ['統編', 'text'], ['聯絡人', 'text'], ['E-mail', 'text'], ['電話', 'text'], ['地址', 'text'], ['送貨地址', 'text'], ['預設免開發票', 'select', ['否', '是']], ['預設結帳週期', 'text'], ['店經理', 'text'], ['區經理', 'text'], ['匯款後五碼', 'text'], ['銀行名稱', 'text'], ['備註', 'textarea']] },
   vendors: { title: '廠商', key: '廠商編號', fin: 1, cols: ['廠商編號', '名稱', '聯絡人', '電話'], fields: [['廠商編號', 'text'], ['名稱', 'text'], ['統編', 'text'], ['聯絡人', 'text'], ['電話', 'text'], ['E-mail', 'text'], ['地址', 'text'], ['備註', 'textarea']] },
   items: { title: '收費明細', key: '商品編號', fin: 1, cat: '類別', cols: ['商品編號', '類別', '項目名稱', '單價', '成本', '單位'], fields: [['商品編號', 'text'], ['類別', 'text'], ['產品', 'text'], ['項目名稱', 'text'], ['規格內容', 'textarea'], ['單價', 'number'], ['成本', 'number'], ['單位', 'text'], ['備註', 'textarea']] },
+  branches: { title: '分院', key: '分院代號', fin: 1, cols: ['分院代號', '客戶編號', '分院名稱', '對外公司名', '統編', '帳號末五碼', '店點編號', '啟用'], fields: [['分院代號', 'text'], ['客戶編號', 'select', 'CUSTS'], ['分院名稱', 'text'], ['對外公司名', 'text'], ['統編', 'text'], ['帳號末五碼', 'text'], ['店點編號', 'text'], ['啟用', 'select', ['是', '否']]] },
   terms: { title: '條款庫', key: '條款ID', auto: true, cols: ['案型', '排序', '標題'], fields: [['案型', 'select', 'KINDS'], ['排序', 'number'], ['標題', 'text'], ['內容', 'textarea', 8], ['預設勾選', 'check']] }
 };
 function renderMaster(t) {
@@ -388,14 +385,16 @@ function renderMaster(t) {
   var rows = S[t].map(function (r, i) { r._i = i; return r; }).filter(function (r) { return (!S.mq || JSON.stringify(r).toLowerCase().indexOf(S.mq.toLowerCase()) >= 0) && (!S.mcat || r[c.cat] === S.mcat); });
   $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">' + c.title + '</h2><input class="in" id="mq" placeholder="搜尋" value="' + esc(S.mq || '') + '"><div style="flex:1"></div>' + (canW(t) ? '<button class="btn pri" data-act="mnew" data-t="' + t + '">＋ 新增</button>' : '') + '</div>' +
     (cats.length ? '<div class="chips" style="margin:-4px 0 14px">' + ['全部'].concat(cats).map(function (x) { return '<button class="chip' + ((S.mcat || '全部') === x ? ' on' : '') + '" data-act="mcat" data-v="' + esc(x) + '" data-t="' + t + '">' + esc(x) + '</button>'; }).join('') + '</div>' : '') +
-    (rows.length ? '<table class="ls"><tr>' + c.cols.map(function (k) { return '<th>' + k + '</th>'; }).join('') + '</tr>' + rows.map(function (r) { return '<tr class="row" data-act="medit" data-t="' + t + '" data-i="' + r._i + '">' + c.cols.map(function (k) { return '<td>' + esc(r[k]) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>' : '<div class="card empty">尚無資料</div>');
+    (t === 'branches' ? '<div id="synbox">' + syncBanner() + '</div>' : '') +
+    (rows.length ? '<div class="sc"><table class="ls"><tr>' + c.cols.map(function (k) { return '<th>' + k + '</th>'; }).join('') + '</tr>' + rows.map(function (r) { return '<tr class="row" data-act="medit" data-t="' + t + '" data-i="' + r._i + '">' + c.cols.map(function (k) { return '<td>' + esc(r[k]) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table></div>' : '<div class="card empty">尚無資料</div>');
+  if (t === 'branches') syncLoad();
   var mq = $('#mq'); mq.addEventListener('input', function () { S.mq = mq.value; var p = mq.selectionStart; debounce(function () { renderMaster(t); var n = $('#mq'); n.focus(); n.setSelectionRange(p, p); }, 200); });
 }
 function openModal(t, row) {
   var c = CFG[t], isNew = !row, r = row || {};
   var html = '<div class="modal" id="md"><div class="mbox"><h3>' + (isNew ? '新增' : '編輯') + c.title + '</h3>' + c.fields.map(function (f) {
     var k = f[0], v = r[k] == null ? '' : r[k], inp;
-    if (f[1] === 'select') { var opts = f[2] === 'KINDS' ? S.kinds : f[2]; inp = '<select class="in" data-mk="' + k + '">' + opts.map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>'; }
+    if (f[1] === 'select') { var opts = f[2] === 'KINDS' ? S.kinds : f[2] === 'CUSTS' ? S.customers.map(function (c) { return [c['客戶編號'], c['客戶編號'] + '　' + c['公司']]; }) : f[2]; inp = '<select class="in" data-mk="' + k + '">' + opts.map(function (o) { var ov = Array.isArray(o) ? o[0] : o, ot = Array.isArray(o) ? o[1] : o; return '<option value="' + esc(ov) + '"' + (ov === v ? ' selected' : '') + '>' + esc(ot) + '</option>'; }).join('') + '</select>'; }
     else if (f[1] === 'textarea') inp = '<textarea class="in" data-mk="' + k + '" rows="' + (f[2] || 3) + '">' + esc(v) + '</textarea>';
     else if (f[1] === 'check') inp = '<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-mk="' + k + '"' + (v === true || v === 'TRUE' || v === 'true' || (isNew && v === '') ? ' checked' : '') + ' style="width:18px;height:18px;accent-color:#f2b800"> 預設勾選</label>';
     else inp = '<input class="in" data-mk="' + k + '" type="' + f[1] + '" value="' + esc(v) + '"' + (!isNew && c.key === k ? ' readonly' : '') + '>';
@@ -491,7 +490,7 @@ function ro() { return E.status !== '草稿' || S.user.role !== '老闆'; }
 function renderEditor() {
   var locked = ro(), custOpts = '<option value="">— 選擇客戶 —</option>' + S.customers.map(function (c) { return '<option value="' + esc(c['客戶編號']) + '"' + (c['客戶編號'] === E.custNo ? ' selected' : '') + '>' + esc(c['客戶編號'] + '　' + c['公司']) + '</option>'; }).join('');
   var kindOpts = '<option value="">— 選擇案型 —</option>' + S.kinds.map(function (k) { return '<option' + (k === E.kind ? ' selected' : '') + '>' + k + '</option>'; }).join('');
-  $('#main').innerHTML = '<div class="bar"><button class="btn" data-act="back">← 返回列表</button><b style="font-size:17px">' + esc(E.no || '新報價單（儲存後產生編號）') + '</b><span class="badge ' + bcls(E.status) + '">' + esc(E.status) + '</span><span class="badge" style="background:#eee">' + (E.ver === 'M' ? '梅科版' : '一般版') + '</span><div style="flex:1"></div>' +
+  $('#main').innerHTML = '<div class="bar"><button class="btn" data-act="back">← 返回列表</button><b style="font-size:17px">' + esc(E.no || '新報價單（儲存後產生編號）') + '</b><span class="badge ' + bcls(E.status) + '">' + esc(stTxt(E.status)) + '</span><span class="badge" style="background:#eee">' + (E.ver === 'M' ? '梅科版' : '一般版') + '</span><div style="flex:1"></div>' +
     '<button class="btn" data-act="print">列印／另存 PDF</button>' +
     (E.status !== '草稿' ? (S.user.role === '老闆' ? '<button class="btn" data-act="copycur">複製為新報價</button>' : '') + (E.pdf ? '<a class="btn" target="_blank" href="' + esc(E.pdf) + '">開啟雲端 PDF</a>' : '') + (S.user.role === '老闆' ? '<button class="btn dark" data-act="pdf">產出 PDF 存雲端硬碟</button>' + (E.status === '已鎖定' ? '<button class="btn" data-act="void">作廢並重開</button>' : '') : '') :
       (S.user.role === '老闆' ? '<button class="btn" data-act="save">儲存草稿</button><button class="btn pri" data-act="lock">送出並鎖定</button>' : '')) + '</div>' +
@@ -505,17 +504,17 @@ function renderEditor() {
     '<div><label class="f">請款月份</label><input class="in" type="month" data-k="billMonth" value="' + esc(E.billMonth) + '"></div><div><label class="f">對方 PO／工單號</label><input class="in" data-k="po" value="' + esc(E.po) + '"></div>' +
     '<div><label class="f">完工日</label><input class="in" type="date" data-k="doneDate" value="' + esc(E.doneDate) + '"></div><div><label class="f">驗收日</label><input class="in" type="date" data-k="acceptDate" value="' + esc(E.acceptDate) + '"></div>' +
     '<div><label class="f">請款單編號</label><input class="in" data-k="billNo" value="' + esc(E.billNo) + '"></div></div></details></div>' +
-    '<div class="card sec"><h3>明細' + (locked ? '' : '<button class="btn sm" data-act="addline" type="button">＋ 新增一列</button>') + '</h3><div id="lines"></div></div>' +
+    '<div class="card sec"><h3>明細' + (locked ? '' : '<span>' + (branchesOf(E.custNo).length ? '<select class="in" id="f_allbranch" style="width:auto;display:inline-block;margin-right:8px">' + brOpts(E.custNo, '').replace('（未分院）', '整張套用分院…') + '</select>' : '') + '<button class="btn sm" data-act="addline" type="button">＋ 新增一列</button></span>') + '</h3><div id="lines"></div></div>' +
     '<div class="card sec"><h3>條款' + (locked ? '' : '<button class="btn sm" data-act="reloadterms" type="button">依案型重新載入</button>') + '</h3><div id="terms"></div></div></fieldset>' +
     '<div class="card"><div class="tot"><span>小計</span><span id="t_sub"></span><span>營業稅</span><span id="t_tax"></span><span class="big">總金額(含稅)</span><span class="big" id="t_tot"></span></div></div>' +
-    '<div class="card sec"><h3>內部備註' + (E.status !== '草稿' && E.no ? '<button class="btn sm" data-act="savenote" type="button">儲存備註</button>' : '') + '</h3><textarea class="in" id="f_note" data-k="note" rows="3" placeholder="只有內部看得到，不會印在報價單上"' + (E.status === '草稿' && S.user.role !== '老闆' ? ' disabled' : '') + '>' + esc(E.note) + '</textarea></div></div>' +
+    payCardHTML() + branchCardHTML() + '<div class="card sec"><h3>內部備註' + (E.status !== '草稿' && E.no ? '<button class="btn sm" data-act="savenote" type="button">儲存備註</button>' : '') + '</h3><textarea class="in" id="f_note" data-k="note" rows="3" placeholder="只有內部看得到，不會印在報價單上"' + (E.status === '草稿' && S.user.role !== '老闆' ? ' disabled' : '') + '>' + esc(E.note) + '</textarea></div></div>' +
     '<div class="pvwrap"><div class="pvbox"><div class="pvin" id="pvin"><iframe id="pv"></iframe></div></div></div></div>' +
     '<datalist id="dl">' + S.items.map(function (i) { return '<option value="' + esc(i['商品編號']) + '">' + esc(i['產品'] + ' ' + i['項目名稱']) + '</option>'; }).join('') + '</datalist>' +
     '<datalist id="dlv">' + S.vendors.map(function (v) { return '<option value="' + esc(v['廠商編號']) + '">' + esc(v['名稱']) + '</option>'; }).join('') + '</datalist>';
   renderLines(); renderTerms(); refresh();
 }
 function lineHTML(l, i) {
-  var M = E.ver === 'M';
+  var M = E.ver === 'M', brs = E.status === '草稿' && branchesOf(E.custNo).length;
   return '<div class="line"><div class="r1' + (M ? ' m' : '') + '">' + (M ? '<div><label class="f">內容（案件分組）</label><input class="in" data-li="' + i + '" data-lk="group" value="' + esc(l.group) + '"></div>' : '') +
     '<div><label class="f">商品編號</label><input class="in" list="dl" data-li="' + i + '" data-lk="code" value="' + esc(l.code) + '"></div><div><label class="f">' + (M ? '項目' : '產品') + '</label><input class="in" data-li="' + i + '" data-lk="product" value="' + esc(l.product) + '"></div>' +
     '<div><label class="f">' + (M ? '規格（品名）' : '項目名稱') + '</label><input class="in" data-li="' + i + '" data-lk="item" value="' + esc(l.item) + '"></div></div>' +
@@ -523,7 +522,7 @@ function lineHTML(l, i) {
     '<div class="r3"><div><label class="f">數量</label><input class="in" type="number" step="any" data-li="' + i + '" data-lk="qty" value="' + esc(l.qty) + '"></div><div><label class="f">單位</label><input class="in" data-li="' + i + '" data-lk="unit" value="' + esc(l.unit) + '"></div>' +
     '<div><label class="f">單價</label><input class="in" type="number" step="any" data-li="' + i + '" data-lk="price" value="' + esc(l.price) + '"></div><div><label class="f">金額</label><div class="amt" id="am' + i + '">' + money(l.amount) + '</div></div><div><label class="f">備註</label><input class="in" data-li="' + i + '" data-lk="note" value="' + esc(l.note) + '"></div>' +
     '<button class="x" data-act="delline" data-i="' + i + '" type="button" title="刪除此列">✕</button></div>' +
-    '<div class="r4"><div><label class="f">廠商（內部，選填）</label><input class="in" list="dlv" data-li="' + i + '" data-lk="vendor" value="' + esc(l.vendor) + '"></div><div><label class="f">成本（內部，選填）</label><input class="in" type="number" step="any" data-li="' + i + '" data-lk="cost" value="' + esc(l.cost) + '"></div></div></div>';
+    '<div class="r4' + (brs ? ' b3' : '') + '"><div><label class="f">廠商（內部，選填）</label><input class="in" list="dlv" data-li="' + i + '" data-lk="vendor" value="' + esc(l.vendor) + '"></div><div><label class="f">成本（內部，選填）</label><input class="in" type="number" step="any" data-li="' + i + '" data-lk="cost" value="' + esc(l.cost) + '"></div>' + (brs ? '<div><label class="f">分院（梅科請款用）</label><select class="in" data-li="' + i + '" data-lk="branch">' + brOpts(E.custNo, l.branch) + '</select></div>' : '') + '</div></div>';
 }
 function renderLines() { $('#lines').innerHTML = E.lines.map(lineHTML).join('') || '<div class="empty">尚無明細</div>'; }
 function renderTerms() {
@@ -584,6 +583,357 @@ function vsave() {
   });
 }
 
+/* ============ 第 3 棒：列表直接填寫、收款折讓、月底請款、分院、梅科請款包 ============ */
+var ST = { '草稿': '編輯中', '已鎖定': '已送出', '已作廢': '已作廢' };
+function stTxt(s) { return ST[s] || s; }
+function pill(t, c) { return '<span class="pill ' + (c || 'p-mute') + '">' + esc(t) + '</span>'; }
+function progCls(p) { return p === '已收' || p === '已收（尾差）' ? 'p-ok' : p === '未收' || p === '無應收' ? 'p-mute' : p === '超收' ? 'p-bad' : 'p-warn'; }
+function isBoss() { return S.user && S.user.role === '老闆'; }
+function rowBy(no) { return S.quotes.filter(function (r) { return String(r['報價單號']) === String(no); })[0]; }
+function setRow(row) { if (!row) return; var i = S.quotes.findIndex(function (r) { return String(r['報價單號']) === String(row['報價單號']); }); if (i >= 0) S.quotes[i] = row; else S.quotes.push(row); }
+function newId(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function ymNow() { return today().slice(0, 7); }
+function doneOf(r) { var v = r['完工']; return (v === '是' || v === true || v === 'TRUE') ? '是' : (v === '否' || v === false || v === 'FALSE') ? '否' : ''; }
+function recvOf(r) { var v = r['應收金額']; return (v === '' || v == null) ? Number(r['總金額']) : Number(v); }
+function branchesOf(cust) { return (S.branches || []).filter(function (b) { return String(b['客戶編號']) === String(cust) && b['啟用'] !== '否' && b['啟用'] !== false && b['啟用'] !== 'FALSE'; }); }
+function invPill(r) {
+  if (r['狀態'] !== '已鎖定') return '';
+  if (r['發票'] === '免開發票') return pill('免開', 'p-mute');
+  if (r['發票'] === '待確認') return pill('待確認', 'p-warn');
+  return String(r['發票號碼'] || '').trim() ? pill('已開', 'p-ok') : pill('未開', 'p-warn');
+}
+function chkCell(r) {
+  if (r['狀態'] !== '已鎖定' || r['發票'] !== '開發票' || !String(r['發票號碼'] || '').trim()) return '';
+  var a = r['發票金額']; if (a === '' || a == null) return pill('待核實', 'p-mute');
+  var d = Math.round((Number(a) - recvOf(r)) * 100) / 100;
+  return Math.abs(d) < 0.5 ? pill('✓', 'p-ok') : pill('差 ' + (d > 0 ? '+' : '') + d.toLocaleString('en-US'), 'p-bad');
+}
+function lfHTML(r) {
+  var no = esc(r['報價單號']), b = isBoss(), fin = S.user.role === '財務', st = r['狀態'];
+  var doneTd = st === '已鎖定' && b ? '<select class="mini" data-lf="done" style="width:70px">' + ['', '是', '否'].map(function (o) { return '<option' + (o === doneOf(r) ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>' : esc(doneOf(r) === '是' ? '✓' : '');
+  var inv;
+  if (st !== '已鎖定') inv = '';
+  else if (r['發票'] === '免開發票') inv = '<span style="color:var(--mute)">—</span>';
+  else if (r['發票'] === '待確認') inv = b ? '<select class="mini" data-lf="resolve" style="width:130px"><option value="">待確認，請定案…</option><option>開發票</option><option>免開發票</option></select>' : '<span style="color:var(--mute)">待老闆確認</span>';
+  else inv = (b || fin) ? '<div class="invin"><input class="mini" data-lf="no" placeholder="發票號碼" value="' + esc(r['發票號碼']) + '" maxlength="10"><input class="mini" data-lf="amt" type="number" step="any" placeholder="金額" value="' + esc(r['發票金額']) + '"><input class="mini" data-lf="date" type="date" value="' + esc(r['發票日期']) + '"><span class="st"></span></div>' : esc(r['發票號碼'] || '');
+  return { done: doneTd, inv: inv };
+}
+function qRow(r) {
+  var no = esc(r['報價單號']), b = isBoss(), st = r['狀態'], lf = lfHTML(r);
+  var pdf = st !== '草稿' ? (r['PDF連結'] ? '<a href="' + esc(r['PDF連結']) + '" target="_blank">下載</a>' : '') + (b && st === '已鎖定' && !r['PDF連結'] ? '<button class="btn sm" data-act="rowpdf" data-no="' + no + '">產生</button>' : '') : '';
+  return '<tr class="row" data-no="' + no + '"><td data-act="open" data-no="' + no + '" style="cursor:pointer"><b>' + no + '</b></td><td>' + esc(String(r['報價日期']).replace(/-/g, '/')) + '</td><td data-act="open" data-no="' + no + '" style="cursor:pointer">' + esc(r['公司']) + '</td><td data-act="open" data-no="' + no + '" style="cursor:pointer">' + esc(r['專案名稱']) + '</td><td class="num">' + money(r['總金額']) + '</td>' +
+    '<td><span class="badge ' + bcls(st) + '">' + esc(stTxt(st)) + '</span></td><td data-c="done">' + lf.done + '</td><td data-c="ip">' + invPill(r) + '</td><td data-c="inv">' + lf.inv + '</td><td data-c="chk">' + chkCell(r) + '</td><td data-c="prog">' + (st === '已鎖定' ? pill(r['收款進度'] || '未收', progCls(r['收款進度'] || '未收')) : '') + '</td><td>' + pdf + (b ? '<button class="btn sm" data-act="copyq" data-no="' + no + '">複製</button>' : '') + '</td></tr>';
+}
+function renderQuotes() {
+  var modeF = function (r) { return S.mode === 'M' ? r['版型'] === 'M' : S.mode === 'G' ? r['版型'] !== 'M' : true; };
+  var list = S.quotes.filter(function (r) { return modeF(r) && (S.filter === '全部' || r['狀態'] === S.filter) && (!S.q || JSON.stringify(r).toLowerCase().indexOf(S.q.toLowerCase()) >= 0); })
+    .sort(function (a, b) { return String(b['報價單號']).localeCompare(String(a['報價單號'])); });
+  var canW = isBoss();
+  $('#main').innerHTML = '<div class="bar"><input class="in" id="qs" placeholder="搜尋報價單號、客戶、專案名稱、發票號碼" value="' + esc(S.q) + '"><div class="chips">' +
+    [['全部', '全部'], ['草稿', '編輯中'], ['已鎖定', '已送出'], ['已作廢', '已作廢']].map(function (c) { return '<button class="chip' + (S.filter === c[0] ? ' on' : '') + '" data-act="filter" data-v="' + c[0] + '">' + c[1] + '</button>'; }).join('') +
+    '</div><div class="chips">' + [['all', '全部客戶'], ['M', '梅科'], ['G', '一般']].map(function (c) { return '<button class="chip' + (S.mode === c[0] ? ' on' : '') + '" data-act="mode" data-v="' + c[0] + '">' + c[1] + '</button>'; }).join('') +
+    '</div><div style="flex:1"></div>' + (canW ? '<button class="btn pri" data-act="newq">＋ 新增報價單</button>' : '') + '</div>' +
+    (list.length ? '<div class="sc"><table class="ls wide"><tr><th>報價單號</th><th>日期</th><th>客戶</th><th>專案名稱</th><th class="num">總金額</th><th>狀態</th><th>完工</th><th>發票</th><th>發票號碼／金額／日期</th><th>核對</th><th>收款</th><th></th></tr>' + list.map(qRow).join('') + '</table></div>' : '<div class="card empty">沒有符合的報價單。</div>');
+  var qs = $('#qs'); if (qs) qs.addEventListener('input', function () { S.q = qs.value; var p = qs.selectionStart; debounce(function () { renderQuotes(); var n = $('#qs'); n.focus(); n.setSelectionRange(p, p); }, 200); });
+}
+/* 列表欄位直接修改（已送出的單才有） */
+function stIcon(box, t) { var s = box && box.querySelector('.st'); if (s) { s.textContent = t; s.title = t; } }
+function lfSend(no, payload, box, revert) {
+  stIcon(box, '…');
+  return api('saveListField', Object.assign({ no: no }, payload)).then(function (r) {
+    if (r && r.ok) { setRow(r.row); stIcon(box, '✓'); return r; }
+    if (r && r.row) setRow(r.row);
+    stIcon(box, '✗'); toast(esc((r && r.msg) || '儲存失敗'), 4200); if (revert) revert(); renderQuotes(); return r;
+  });
+}
+var LFQ = {};
+function lfChange(t) {
+  var tr = t.closest('tr'), no = tr && tr.dataset.no, r = rowBy(no), f = t.dataset.lf; if (!r) return;
+  var box = t.closest('.invin');
+  if (f === 'done') {
+    if (!t.value) { t.value = doneOf(r); return toast('完工只能選「是」或「否」'); }
+    return lfSend(no, { field: 'done', value: t.value, prev: doneOf(r) }, null).then(function (x) { if (x && x.ok) renderQuotes(); });
+  }
+  if (f === 'resolve') {
+    if (!t.value) return;
+    if (!confirm('定案為「' + t.value + '」後，這張單的發票狀態就確定了，確定嗎？')) { t.value = ''; return; }
+    return lfSend(no, { field: 'resolve', value: t.value }, null).then(function (x) { if (x && x.ok) renderQuotes(); });
+  }
+  var cell = t.closest('td');
+  /* 同一張單的儲存排隊執行：快速連續填三格時，後一次用前一次存好的結果當比對基準，不會互相衝突 */
+  LFQ[no] = (LFQ[no] || Promise.resolve()).then(function () {
+    var r2 = rowBy(no), g = function (k) { return cell.querySelector('[data-lf=' + k + ']').value; };
+    var prev = { no: String(r2['發票號碼'] || ''), amt: r2['發票金額'] === '' || r2['發票金額'] == null ? '' : Number(r2['發票金額']), date: String(r2['發票日期'] || '') };
+    var val = { no: g('no').replace(/\s/g, '').toUpperCase(), amt: g('amt'), date: g('date') };
+    if (String(prev.amt) === String(val.amt) && prev.no === val.no && prev.date === val.date) return;
+    var reason = '';
+    if (prev.no && val.no !== prev.no) {
+      if (!isBoss()) { toast('已經填過的發票號碼只有老闆可以更改'); cell.querySelector('[data-lf=no]').value = prev.no; return; }
+      reason = prompt('要更改或清空已填的發票號碼 ' + prev.no + '，請填寫原因（必填）：') || '';
+      if (!reason.trim()) { cell.querySelector('[data-lf=no]').value = prev.no; return toast('沒有填原因，已取消更改'); }
+    }
+    cell.querySelector('[data-lf=no]').value = val.no;
+    return lfSend(no, { field: 'inv', value: val, prev: prev, reason: reason }, box).then(function (x) {
+      if (x && x.ok) { var rr = rowBy(no); ['ip', 'chk', 'prog'].forEach(function (c) { var td = tr.querySelector('[data-c=' + c + ']'); if (td) td.innerHTML = c === 'ip' ? invPill(rr) : c === 'chk' ? chkCell(rr) : pill(rr['收款進度'] || '未收', progCls(rr['收款進度'] || '未收')); }); }
+    });
+  });
+}
+function rowPdf(no, btn) {
+  btn.disabled = true; btn.textContent = '產生中…';
+  api('pdf', { no: no }).then(function (r) { if (!r.ok) { toast(esc(r.msg), 4000); btn.disabled = false; btn.textContent = '產生'; return; } var row = rowBy(no); if (row) row['PDF連結'] = r.url; renderQuotes(); toast('PDF 已存到雲端硬碟'); });
+}
+
+/* ---- 報價單內：收款、折讓、設計師 ---- */
+function payInner() {
+  var p = E.pay, boss = isBoss(), live = E.status === '已鎖定';
+  var h = '<h3>收款與折讓<span>' + pill(p.progress, progCls(p.progress)) + (live ? ' <button class="btn sm" data-act="paynew" type="button">＋ 記一筆收款</button>' + (boss ? ' <button class="btn sm" data-act="crnew" type="button">折讓／讓價</button>' : '') : '') + '</span></h3>';
+  h += '<div style="display:flex;gap:22px;flex-wrap:wrap;margin-bottom:12px;color:var(--mute)"><span>應收 <b style="color:var(--ink)">' + money(p.receivable) + '</b></span><span>已收 <b style="color:var(--ink)">' + money(p.paid) + '</b></span><span>尚差 <b style="color:var(--ink)">' + money(p.diff) + '</b></span>' + (p.credit ? '<span>已折讓 <b style="color:var(--ink)">' + money(p.credit) + '</b></span>' : '') + '</div>';
+  var ps = p.payments || [];
+  h += ps.length ? '<table class="ls nolink"><tr><th>日期</th><th class="num">金額</th><th>類型</th><th>方式</th><th>後5碼</th><th>狀態</th><th></th></tr>' + ps.map(function (x) {
+    return '<tr class="row"><td>' + esc(String(x['收款日期']).replace(/-/g, '/')) + '</td><td class="num">' + money(x['金額']) + '</td><td>' + esc(x['類型']) + (x['性質'] === '代收代付' ? ' <span class="tag">代收代付</span>' : '') + '</td><td>' + esc(x['方式']) + '</td><td>' + esc(x['匯款後5碼']) + '</td><td>' + (x['狀態'] === '已沖銷' ? '<span style="color:var(--mute)">已沖銷：' + esc(x['沖銷原因']) + '</span>' : '有效') + '</td><td>' + (boss && x['狀態'] !== '已沖銷' ? '<button class="btn sm" data-act="payrev" data-id="' + esc(x['收款ID']) + '" type="button">沖銷</button>' : '') + '</td></tr>';
+  }).join('') + '</table>' : '<div style="color:var(--mute);padding:6px 4px">還沒有收款紀錄</div>';
+  var cs = p.credits || [];
+  if (cs.length) h += '<div style="margin-top:12px;font-weight:600">折讓／讓價</div><table class="ls nolink"><tr><th>日期</th><th class="num">合計</th><th>原因</th><th>狀態</th><th></th></tr>' + cs.map(function (x) {
+    return '<tr class="row"><td>' + esc(String(x['折讓日期']).replace(/-/g, '/')) + '</td><td class="num">' + money(x['合計']) + '</td><td>' + esc(x['原因']) + '</td><td>' + (x['狀態'] === '作廢' ? '已作廢' : '有效') + '</td><td>' + (boss && x['狀態'] !== '作廢' ? '<button class="btn sm" data-act="crvoid" data-id="' + esc(x['折讓編號']) + '" type="button">作廢</button>' : '') + '</td></tr>';
+  }).join('') + '</table>';
+  if (boss) h += '<div style="margin-top:14px;max-width:360px"><label class="f">設計師（外包，選填，彙總表用）</label><input class="in" id="f_designer" value="' + esc(E.designer || '') + '" maxlength="40"></div>';
+  return h;
+}
+function payCardHTML() { return (E.no && E.status !== '草稿' && E.pay) ? '<div class="card sec" id="paycard">' + payInner() + '</div>' : ''; }
+function redrawPay() { var c = $('#paycard'); if (c && E && E.pay) c.innerHTML = payInner(); }
+function afterPay(r) { if (r.quote && E && E.no === r.quote.no) { E.pay = r.quote.pay; redrawPay(); } setRow(r.row); }
+function mopen(html) { var d = document.createElement('div'); d.innerHTML = '<div class="modal" id="md"><div class="mbox">' + html + '</div></div>'; document.body.appendChild(d.firstChild); }
+function openPayModal(nature) {
+  var gen = nature === '代收代付', due = (!gen && E && E.pay) ? Math.max(E.pay.diff, 0) : '';
+  window.__pid = newId('P');
+  var custs = '<option value="">— 選擇客戶 —</option>' + S.customers.map(function (c) { return '<option value="' + esc(c['客戶編號']) + '">' + esc(c['客戶編號'] + '　' + c['公司']) + '</option>'; }).join('');
+  mopen('<h3>' + (gen ? '記一筆代收代付' : '記一筆收款 ' + esc(E.no)) + '</h3>' + (gen ? '<div style="color:var(--mute);font-size:13.5px;margin-bottom:12px">代收代付不算營收，也不影響報價單的應收。</div><div class="fld"><label class="f">客戶</label><select class="in" id="p_cust">' + custs + '</select></div>' : '') +
+    '<div class="grid2"><div class="fld"><label class="f">收款日期</label><input class="in" id="p_date" type="date" value="' + today() + '"></div><div class="fld"><label class="f">金額</label><input class="in" id="p_amt" type="number" step="any" value="' + esc(due) + '"></div>' +
+    (gen ? '' : '<div class="fld"><label class="f">類型</label><select class="in" id="p_type">' + ['全額', '訂金', '尾款', '手續費尾差'].map(function (o) { return '<option>' + o + '</option>'; }).join('') + '</select></div>') +
+    '<div class="fld"><label class="f">方式</label><select class="in" id="p_method">' + ['匯款', 'LIME PAY', '現金', '儲值抵扣', '其他'].map(function (o) { return '<option>' + o + '</option>'; }).join('') + '</select></div>' +
+    '<div class="fld"><label class="f">匯款後 5 碼</label><input class="in" id="p_l5" maxlength="5"></div><div class="fld"><label class="f">銀行入帳日（選填）</label><input class="in" id="p_bd" type="date"></div></div>' +
+    '<div class="fld"><label class="f">備註</label><input class="in" id="p_note"></div>' +
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px"><button class="btn" data-act="mclose">取消</button><button class="btn pri" data-act="paysave" data-n="' + (gen ? '代收代付' : '營業') + '">儲存收款</button></div>');
+}
+function paySave(nature) {
+  var amt = Number($('#p_amt').value); if (!(amt > 0)) return toast('請填寫金額');
+  var p = { id: window.__pid, nature: nature, amount: amt, date: $('#p_date').value, method: $('#p_method').value, last5: $('#p_l5').value.trim(), bankDate: $('#p_bd').value, note: $('#p_note').value };
+  if (nature === '代收代付') { p.cust = $('#p_cust').value; if (!p.cust) return toast('請選擇客戶'); } else { p.no = E.no; p.type = $('#p_type').value; p.invNo = E.invNo || ''; }
+  var btn = $('[data-act=paysave]'); btn.disabled = true;
+  api('addPayment', { payment: p }).then(function (r) {
+    if (!r || !r.ok) { btn.disabled = false; return toast(esc((r && r.msg) || '儲存失敗'), 4200); }
+    $('#md').remove(); if (nature === '營業') afterPay(r); toast('收款已記錄'); if (S.view === 'pays' && !E) loadPays();
+  });
+}
+function openCreditModal() {
+  window.__cid = newId('C');
+  var inv = E.invNo && E.invoice === '開發票';
+  mopen('<h3>折讓／讓價 ' + esc(E.no) + '</h3><div style="color:var(--mute);font-size:13.5px;margin-bottom:12px">' + (inv ? '這張已開發票，會以「折讓」處理（金額含稅，系統自動拆稅額）。' : '這張未開發票或免開，會以「讓價」處理（直接降低應收）。') + '</div>' +
+    '<div class="grid2"><div class="fld"><label class="f">金額（含稅）</label><input class="in" id="c_amt" type="number" step="any"></div><div class="fld"><label class="f">日期</label><input class="in" id="c_date" type="date" value="' + today() + '"></div></div>' +
+    '<div class="fld"><label class="f">原因（必填）</label><input class="in" id="c_reason"></div><div class="fld"><label class="f">折讓證明單號（選填）</label><input class="in" id="c_cert"></div>' +
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px"><button class="btn" data-act="mclose">取消</button><button class="btn pri" data-act="crsave">確認</button></div>');
+}
+function creditSave() {
+  var amt = Number($('#c_amt').value), reason = $('#c_reason').value.trim(); if (!(amt > 0)) return toast('請填寫金額'); if (!reason) return toast('請填寫原因');
+  var btn = $('[data-act=crsave]'); btn.disabled = true;
+  api('addCredit', { credit: { id: window.__cid, no: E.no, amount: amt, date: $('#c_date').value, reason: reason, cert: $('#c_cert').value } }).then(function (r) {
+    if (!r || !r.ok) { btn.disabled = false; return toast(esc((r && r.msg) || '儲存失敗'), 4200); } $('#md').remove(); afterPay(r); toast('已記錄');
+  });
+}
+function payRev(id) { var reason = prompt('沖銷這筆收款，請填寫原因（必填）：'); if (!reason || !reason.trim()) return; api('reversePayment', { id: id, reason: reason }).then(function (r) { if (!r.ok) return toast(esc(r.msg), 4200); afterPay(r); toast('已沖銷'); }); }
+function crVoid(id) { var reason = prompt('作廢這筆折讓，請填寫原因（必填）：'); if (!reason || !reason.trim()) return; api('voidCredit', { id: id, reason: reason }).then(function (r) { if (!r.ok) return toast(esc(r.msg), 4200); afterPay(r); toast('已作廢'); }); }
+
+/* ---- 分院標記 ---- */
+function brOpts(cust, cur) { return '<option value="">（未分院）</option>' + branchesOf(cust).map(function (b) { return '<option value="' + esc(b['分院代號']) + '"' + (String(cur || '') === String(b['分院代號']) ? ' selected' : '') + '>' + esc(b['分院名稱']) + '</option>'; }).join(''); }
+function branchCardHTML() {
+  if (E.status !== '已鎖定' || !E.no || !branchesOf(E.custNo).length) return '';
+  return '<div class="card sec" id="brcard"><h3>分院標記（梅科請款包用）<span><select class="in" id="f_allbranch2" style="width:auto;display:inline-block">' + brOpts(E.custNo, '').replace('（未分院）', '整張套用…') + '</select> <button class="btn sm" data-act="brsave" type="button">儲存分院</button></span></h3>' +
+    E.lines.map(function (l, i) { return '<div style="display:grid;grid-template-columns:30px 1fr 110px 160px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><span style="color:var(--mute)">' + (i + 1) + '</span><span>' + esc((l.product ? l.product + ' ' : '') + (l.item || '')) + '</span><span class="num">' + money(l.amount) + '</span><select class="mini" data-bi="' + i + '">' + brOpts(E.custNo, l.branch) + '</select></div>'; }).join('') + '</div>';
+}
+function brSave() {
+  var items = E.lines.map(function (l, i) { var s = document.querySelector('[data-bi="' + i + '"]'); return { seq: i + 1, branch: s ? s.value : (l.branch || '') }; });
+  var btn = $('[data-act=brsave]'); btn.disabled = true;
+  api('saveLineBranch', { no: E.no, items: items }).then(function (r) { btn.disabled = false; if (!r.ok) return toast(esc(r.msg), 4200); E.lines = r.quote.lines; toast(r.changed ? '分院已更新（' + r.changed + ' 列）' : '沒有變動'); });
+}
+
+/* ---- 收款列表 ---- */
+function renderPays() {
+  S.pc = S.pc || ''; S.pm = S.pm == null ? ymNow() : S.pm;
+  $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">收款紀錄</h2><select class="in" id="pc" style="max-width:260px"><option value="">全部客戶</option>' + S.customers.map(function (c) { return '<option value="' + esc(c['客戶編號']) + '"' + (c['客戶編號'] === S.pc ? ' selected' : '') + '>' + esc(c['公司']) + '</option>'; }).join('') + '</select><input class="in" id="pm" type="month" value="' + esc(S.pm) + '" style="max-width:170px"><div style="flex:1"></div><button class="btn pri" data-act="gennew">＋ 記代收代付</button></div><div id="pays"><div class="card empty">載入中…</div></div>';
+  loadPays();
+}
+function loadPays() {
+  api('listPayments', { cust: S.pc, ym: S.pm }).then(function (r) {
+    var el = $('#pays'); if (!el) return; if (!r.ok) return el.innerHTML = '<div class="card empty">' + esc(r.msg) + '</div>';
+    var tot = 0; r.rows.forEach(function (x) { if (x['狀態'] !== '已沖銷' && x['性質'] !== '代收代付') tot += Number(x['金額']) || 0; });
+    el.innerHTML = r.rows.length ? '<div style="color:var(--mute);margin:0 4px 8px">營業收款合計（不含代收代付、已沖銷） <b style="color:var(--ink)">' + money(tot) + '</b></div><div class="sc"><table class="ls nolink"><tr><th>日期</th><th>報價單號</th><th>公司</th><th class="num">金額</th><th>類型</th><th>方式</th><th>後5碼</th><th>狀態</th></tr>' + r.rows.map(function (x) { return '<tr class="row"><td>' + esc(String(x['收款日期']).replace(/-/g, '/')) + '</td><td>' + esc(x['報價單號'] || '代收代付') + '</td><td>' + esc(x['公司']) + '</td><td class="num">' + money(x['金額']) + '</td><td>' + esc(x['類型']) + '</td><td>' + esc(x['方式']) + '</td><td>' + esc(x['匯款後5碼']) + '</td><td>' + (x['狀態'] === '已沖銷' ? '已沖銷' : '有效') + '</td></tr>'; }).join('') + '</table></div>' : '<div class="card empty">這個條件下沒有收款紀錄。</div>';
+  });
+}
+
+/* ---- 月底請款 ---- */
+function custSel(id, cur, only) { return '<select class="in" id="' + id + '" style="max-width:280px"><option value="">— 選擇客戶 —</option>' + S.customers.filter(function (c) { return !only || only(c); }).map(function (c) { return '<option value="' + esc(c['客戶編號']) + '"' + (c['客戶編號'] === cur ? ' selected' : '') + '>' + esc(c['公司']) + '</option>'; }).join('') + '</select>'; }
+function renderBilling() {
+  S.bc = S.bc || ''; S.bmo = S.bmo || ymNow();
+  $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">月底請款</h2>' + custSel('bc', S.bc) + '<input class="in" id="bmo" type="month" value="' + esc(S.bmo) + '" style="max-width:170px"><button class="btn pri" data-act="blprev">預覽可請款的單</button></div><div id="blres"><div class="card empty">選好客戶與月份後按「預覽」。系統只列出：已送出、要開發票、已標完工、還沒開過發票的報價單。</div></div>';
+  if (S.bl && S.bl.cust === S.bc && S.bl.ym === S.bmo) drawBill();
+}
+function blPreview() {
+  S.bc = $('#bc').value; S.bmo = $('#bmo').value; if (!S.bc || !S.bmo) return toast('請選擇客戶與月份');
+  api('billingPreview', { cust: S.bc, ym: S.bmo }).then(function (r) { if (!r.ok) return toast(esc(r.msg), 4200); S.bl = r; S.bl.batchId = newId('BT'); S.bl.result = null; drawBill(); });
+}
+function blSum() { var s = 0; document.querySelectorAll('[data-bk]:checked').forEach(function (c) { s += Number(c.dataset.rv) || 0; }); return Math.round(s * 100) / 100; }
+function drawBill() {
+  var r = S.bl, el = $('#blres'); if (!el) return;
+  if (r.result) { el.innerHTML = '<div class="card"><h3 style="margin:0 0 8px">已套用　請款單編號 ' + esc(r.result.billNo) + '</h3><div style="color:var(--mute)">共 ' + r.result.count + ' 張，合計 ' + money(r.result.total) + '。發票號碼已寫入各報價單。</div><div style="margin-top:14px"><button class="btn" data-act="blundo">復原這次請款</button></div></div>'; return; }
+  var rows = r.rows;
+  el.innerHTML = (rows.length ? '<div class="sc"><table class="ls nolink"><tr><th></th><th>報價單號</th><th>日期</th><th>專案</th><th class="num">應收</th><th class="num">已收</th><th></th></tr>' + rows.map(function (x) { return '<tr class="row"><td><input type="checkbox" data-bk="' + esc(x.no) + '" data-rv="' + x.receivable + '"' + (x.anomaly ? '' : ' checked') + ' style="width:18px;height:18px;accent-color:#f2b800"></td><td><b>' + esc(x.no) + '</b></td><td>' + esc(x.date.replace(/-/g, '/')) + '</td><td>' + esc(x.project) + '</td><td class="num">' + money(x.receivable) + '</td><td class="num">' + money(x.paid) + '</td><td>' + (x.anomaly ? pill('請確認金額／成本', 'p-warn') : '') + (x.noDate ? pill('未填完工日', 'p-mute') : '') + '</td></tr>'; }).join('') + '</table></div>' +
+    '<div class="card" style="margin-top:14px"><div class="grid3"><div><label class="f">發票號碼</label><input class="in" id="bl_no" maxlength="10" placeholder="例如 AB12345678"></div><div><label class="f">發票日期</label><input class="in" id="bl_date" type="date" value="' + today() + '"></div><div><label class="f">發票總額（含稅，需等於勾選合計）</label><input class="in" id="bl_total" type="number" step="any"></div></div><div style="margin-top:14px;display:flex;gap:14px;align-items:center"><span>勾選合計 <b id="bl_sum"></b></span><div style="flex:1"></div><button class="btn pri" data-act="blapply">套用：寫入發票並產生請款單編號</button></div></div>' : '<div class="card empty">這個月份沒有符合條件的報價單。</div>') +
+    (r.others.length ? '<div style="margin:18px 4px 6px;color:var(--mute)">不在請款清單內的單</div><table class="ls nolink">' + r.others.map(function (x) { return '<tr class="row"><td>' + esc(x.no) + '</td><td>' + esc(x.project) + '</td><td class="num">' + money(x.receivable) + '</td><td>' + pill(x.reason, 'p-mute') + '</td></tr>'; }).join('') + '</table>' : '');
+  blSyncSum();
+}
+function blSyncSum() { var s = $('#bl_sum'); if (!s) return; var v = blSum(); s.textContent = money(v); var t = $('#bl_total'); if (t && !t.dataset.touched) t.value = v; }
+function blApply() {
+  var nos = []; document.querySelectorAll('[data-bk]:checked').forEach(function (c) { nos.push(c.dataset.bk); }); if (!nos.length) return toast('請至少勾選一張');
+  var btn = $('[data-act=blapply]'); btn.disabled = true;
+  api('billingApply', { batchId: S.bl.batchId, cust: S.bl.cust, ym: S.bl.ym, nos: nos, invNo: $('#bl_no').value, invDate: $('#bl_date').value, invTotal: Number($('#bl_total').value) }).then(function (r) {
+    if (!r || !r.ok) { btn.disabled = false; return toast(esc((r && r.msg) || '套用失敗'), 5000); }
+    (r.rows || []).forEach(setRow); S.bl.result = { billNo: r.billNo, count: r.count || (r.rows || []).length, total: r.total || 0 }; drawBill(); toast('已套用');
+  });
+}
+function blUndo() {
+  if (!confirm('復原後，這批報價單的發票號碼與請款單編號會清掉（發票號碼保留作廢紀錄）。確定嗎？')) return;
+  api('billingUndo', { batchId: S.bl.batchId }).then(function (r) { if (!r.ok) return toast(esc(r.msg), 6000); (r.rows || []).forEach(setRow); S.bl = null; renderBilling(); toast('已復原'); });
+}
+
+/* ---- 完工彙總（老闆） ---- */
+function renderDone() {
+  S.dm = S.dm == null ? ymNow() : S.dm;
+  $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">完工彙總</h2><input class="in" id="dm" type="month" value="' + esc(S.dm) + '" style="max-width:170px"><div style="flex:1"></div></div><div id="done"><div class="card empty">載入中…</div></div>';
+  api('doneSummary', { ym: S.dm }).then(function (r) {
+    var el = $('#done'); if (!el) return; if (!r.ok) return el.innerHTML = '<div class="card empty">' + esc(r.msg) + '</div>';
+    var s = { sales: 0, recv: 0, paid: 0, profit: 0 }; r.rows.forEach(function (x) { s.sales += x.sales; s.recv += x.receivable; s.paid += x.paid; s.profit += x.profit; });
+    el.innerHTML = r.rows.length ? '<div style="color:var(--mute);margin:0 4px 8px">共 ' + r.rows.length + ' 張　銷售額 <b style="color:var(--ink)">' + money(s.sales) + '</b>　應收 ' + money(s.recv) + '　已收 ' + money(s.paid) + '　毛利 ' + money(Math.round(s.profit * 100) / 100) + '</div><div class="sc"><table class="ls nolink"><tr><th>報價單號</th><th>公司</th><th>完工日</th><th>發票號碼</th><th class="num">銷售額</th><th class="num">應收</th><th class="num">已收</th><th>最後收款</th><th class="num">成本</th><th class="num">毛利</th><th>設計師</th><th>進度</th></tr>' + r.rows.map(function (x) { return '<tr class="row"><td><b>' + esc(x.no) + '</b></td><td>' + esc(x.company) + '</td><td>' + esc(String(x.doneDate).replace(/-/g, '/')) + '</td><td>' + esc(x.invNo) + '</td><td class="num">' + money(x.sales) + '</td><td class="num">' + money(x.receivable) + '</td><td class="num">' + money(x.paid) + '</td><td>' + esc(String(x.lastPaid).replace(/-/g, '/')) + '</td><td class="num">' + money(x.cost) + '</td><td class="num">' + money(x.profit) + '</td><td><input class="mini" data-dz="' + esc(x.no) + '" value="' + esc(x.designer) + '" maxlength="40" style="width:110px"></td><td>' + pill(x.progress, progCls(x.progress)) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="card empty">這個月份還沒有標示完工的報價單。</div>';
+  });
+}
+
+/* ---- 梅科請款包（老闆） ---- */
+function renderPack() {
+  S.kc = S.kc || ''; S.kmo = S.kmo || ymNow();
+  $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">梅科請款包</h2>' + custSel('kc', S.kc, function (c) { return c['類型'] === '梅科' || branchesOf(c['客戶編號']).length; }) + '<input class="in" id="kmo" type="month" value="' + esc(S.kmo) + '" style="max-width:170px"><button class="btn pri" data-act="packcheck">檢查本月分院明細</button></div><div id="synbox">' + syncBanner() + '</div><div id="packres"><div class="card empty">選好客戶與月份後按「檢查」。系統會依報價單明細上的分院標記，整理成每家分院一份（不含金額）＋一張彙整表（含金額）。</div></div>';
+  syncLoad();
+}
+function packCheck() {
+  S.kc = $('#kc').value; S.kmo = $('#kmo').value; if (!S.kc || !S.kmo) return toast('請選擇客戶與月份');
+  api('packPlan', { cust: S.kc, ym: S.kmo }).then(function (r) {
+    var el = $('#packres'); if (!r.ok) return toast(esc(r.msg), 4200); S.pk = r;
+    el.innerHTML = '<div class="card" style="margin-bottom:14px">共 <b>' + r.quoteCount + '</b> 張報價單，<b>' + r.branches.length + '</b> 家分院有明細。小計 ' + money(r.totals.sub) + '　營業稅 ' + money(r.totals.tax) + '　總額 <b>' + money(r.totals.total) + '</b>' +
+      (r.taxDiff ? '<div style="margin-top:8px;color:var(--warn)">各分院稅額分別四捨五入，加總與整批發票稅額差 ' + r.taxDiff + ' 元（彙整表會註明）。</div>' : '') +
+      (r.unassigned.count ? '<div style="margin-top:8px;color:#c0392b">有 ' + r.unassigned.count + ' 列明細（小計 ' + money(r.unassigned.sub) + '）還沒標分院：' + esc(r.unassigned.nos.join('、')) + '。請先到各報價單補標，否則不會列入請款包。</div>' : '') +
+      (r.branches.some(function (b) { return !b.last5; }) ? '<div style="margin-top:8px;color:var(--warn)">有分院缺「帳號末五碼」：' + esc(r.branches.filter(function (b) { return !b.last5; }).map(function (b) { return b.name; }).join('、')) + '。請款單上該欄會空白，請先到梅科表補上並同步。</div>' : '') +
+      (r.creditUnallocated ? '<div style="margin-top:8px;color:var(--warn)">本月有折讓／讓價 ' + money(r.creditUnallocated) + '，不會分攤到分院，只在彙整表註明。</div>' : '') + '</div>' +
+      (r.branches.length ? '<div class="sc"><table class="ls nolink"><tr><th>#</th><th>分院</th><th>公司名稱</th><th>統編</th><th>末五碼</th><th class="num">小計</th><th class="num">稅</th><th class="num">總額</th><th id="pkst"></th></tr>' + r.branches.map(function (b, i) { return '<tr class="row"><td>' + (i + 1) + '</td><td>' + esc(b.name) + '</td><td>' + esc(b.company) + '</td><td>' + esc(b.taxId) + '</td><td>' + (b.last5 ? esc(b.last5) : '<span style="color:#c0392b">缺</span>') + '</td><td class="num">' + money(b.sub) + '</td><td class="num">' + money(b.tax) + '</td><td class="num">' + money(b.total) + '</td><td data-pk="' + esc(b.code) + '"></td></tr>'; }).join('') + '</table></div><div style="margin-top:14px;display:flex;gap:14px;align-items:center"><button class="btn pri" data-act="packrun">產生梅科請款包（' + r.branches.length + ' 份＋彙整表）</button><span id="pkprog" style="color:var(--mute)"></span></div><div id="pkdone"></div>' : '');
+  });
+}
+
+/* ---- 梅科分院表同步 ---- */
+function syncBanner() {
+  if (DEMO || !S.user || S.user.role !== '老闆') return '';
+  var y = S.sync, box = 'margin:0 0 14px;padding:12px 16px;border-radius:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;';
+  if (!y) return '<div style="' + box + 'background:#f3efe6;color:var(--mute)">檢查梅科分院表中…</div>';
+  if (y.state === 'ok') return '<div style="' + box + 'background:#e6f4ea;color:#1e6b3a">✓ 與梅科分院表一致' + (y.warns ? '（有 ' + y.warns + ' 則資料提醒）' : '') + '<span style="flex:1"></span><button class="btn sm" data-act="synopen">檢視</button><button class="btn sm ghost" data-act="synrecheck">重新檢查</button></div>';
+  if (y.state === 'pending') return '<div style="' + box + 'background:#fff4d6;color:#8a5a00">⚠ 梅科分院表有 ' + y.pending + ' 家分院和我們的清單不同<span style="flex:1"></span><button class="btn sm pri" data-act="synopen">檢視並同步</button></div>';
+  return '<div style="' + box + 'background:#fde8e6;color:#a8281c">✗ 目前讀不到梅科分院表：' + esc(y.msg) + '<br>現有分院清單仍可正常使用，只是不會自動更新。<span style="flex:1"></span><button class="btn sm" data-act="synrecheck">重新檢查</button></div>';
+}
+function syncPaint() { var el = $('#synbox'); if (el) el.innerHTML = syncBanner(); }
+function syncLoad(force) {
+  if (DEMO || !S.user || S.user.role !== '老闆') return;
+  if (S.sync && !force) return;
+  api('syncCheck', { force: force ? 1 : 0 }).then(function (r) { S.sync = r && r.ok ? r : { state: 'error', msg: (r && r.msg) || '連線失敗' }; syncPaint(); });
+}
+function syncModal() {
+  var p = S.sp, old = $('#md'); if (old) old.remove();
+  var nw = p.items.filter(function (i) { return i.type === '新增'; }), ch = p.items.filter(function (i) { return i.type === '變更'; });
+  function row(i) { return '<label style="display:block;padding:8px 0;border-bottom:1px solid #eee"><input type="checkbox" data-sk="' + esc(i.no) + '" checked> <b>' + esc(i.name) + '</b> <span style="color:var(--mute);font-size:12px">店點 ' + esc(i.no) + (i.type === '變更' ? '・' + esc(i.code) : '') + '</span>' +
+    (i.changes.length ? '<div style="margin:4px 0 0 24px;font-size:13px;color:#555">' + i.changes.map(function (c) { return esc(c.f) + '：' + (esc(c.from) || '（空）') + ' → <b>' + (esc(c.to) || '（空）') + '</b>'; }).join('<br>') + '</div>' : '<div style="margin:4px 0 0 24px;font-size:13px;color:#555">' + esc(i.title) + '</div>') + '</label>'; }
+  var h = '<div class="modal" id="md"><div class="mbox"><h3>梅科分院表同步</h3><div style="color:var(--mute);font-size:13px;margin:-8px 0 12px">來源：' + esc(p.bookName || '梅科分院資訊表') + '（讀到 ' + p.rowsRead + ' 列，' + p.same + ' 家已一致）。取消勾選的項目這次不會動。</div>' +
+    (nw.length ? '<h4 style="margin:10px 0 2px">新增 ' + nw.length + ' 家</h4>' + nw.map(row).join('') : '') +
+    (ch.length ? '<h4 style="margin:14px 0 2px">變更 ' + ch.length + ' 家</h4>' + ch.map(row).join('') : '') +
+    (p.items.length ? '' : '<div class="card empty">沒有需要同步的項目</div>') +
+    (p.warns.length ? '<h4 style="margin:14px 0 2px;color:#8a5a00">資料提醒（需跟梅科確認，不影響同步）</h4><div style="font-size:13px;color:#8a5a00">' + p.warns.map(function (w) { return '・' + esc(w.name) + '：' + esc(w.text); }).join('<br>') + '</div>' : '') +
+    (p.idle.length ? '<h4 style="margin:14px 0 2px;color:var(--mute)">未啟用／未對上（不會被動到）</h4><div style="font-size:13px;color:var(--mute)">' + p.idle.map(function (w) { return '・' + esc(w.name) + '（' + esc(w.why) + '）'; }).join('<br>') + '</div>' : '') +
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button class="btn" data-act="mclose">關閉</button>' + (p.items.length ? '<button class="btn pri" data-act="syngo">同步勾選項目</button>' : '') + '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', h);
+}
+function syncOpen() {
+  var b = $('[data-act=synopen]'); if (b) b.disabled = true;
+  api('syncPlan', {}).then(function (r) {
+    if (b) b.disabled = false;
+    if (!r || !r.ok) { S.sync = { state: 'error', msg: (r && r.msg) || '連線失敗' }; syncPaint(); return toast(esc(S.sync.msg), 4200); }
+    S.sp = r; syncModal();
+  });
+}
+function syncGo() {
+  var nos = [].slice.call(document.querySelectorAll('#md [data-sk]')).filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.sk; });
+  if (!nos.length) return toast('請至少勾選一項');
+  var btn = $('[data-act=syngo]'); btn.disabled = true; btn.textContent = '同步中…';
+  api('syncApply', { sig: S.sp.sig, nos: nos }).then(function (r) {
+    if (r && r.ok) { S.branches = r.rows; S.sync = null; $('#md').remove(); toast('已同步：新增 ' + r.added + '、變更 ' + r.changed); render(); return; }
+    btn.disabled = false; btn.textContent = '同步勾選項目';
+    if (r && r.code === 'STALE') { toast(esc(r.msg), 4200); $('#md').remove(); syncOpen(); return; }
+    toast(esc((r && r.msg) || '同步失敗'), 4200);
+  });
+}
+function packRun() {
+  var r = S.pk, btn = $('[data-act=packrun]'), prog = $('#pkprog'), codes = r.branches.map(function (b) { return b.code; }), done = 0, fails = [], folder = '';
+  btn.disabled = true; prog.textContent = '開始產生…';
+  function mark(code, txt) { var td = document.querySelector('[data-pk="' + code + '"]'); if (td) td.innerHTML = txt; }
+  function chunk(i) {
+    if (i >= codes.length) return Promise.resolve();
+    return Promise.all(codes.slice(i, i + 4).map(function (code) {
+      mark(code, '…');
+      return api('packBranch', { cust: r.cust, ym: r.ym, code: code }).then(function (x) {
+        if (x && x.ok) { done++; folder = x.folder || folder; mark(code, '<a href="' + esc(x.url) + '" target="_blank">✓ ' + (x.skipped ? '已有' : '完成') + '</a>'); } else { fails.push(code); mark(code, '<span style="color:#c0392b" title="' + esc((x && x.msg) || '') + '">✗ 失敗</span>'); }
+        prog.textContent = '已完成 ' + done + ' / ' + codes.length;
+      });
+    })).then(function () { return chunk(i + 4); });
+  }
+  chunk(0).then(function () {
+    if (fails.length) { btn.disabled = false; prog.textContent = '有 ' + fails.length + ' 份失敗，請再按一次（已完成的會自動略過）'; return; }
+    prog.textContent = '產生彙整表…';
+    return api('packSummary', { cust: r.cust, ym: r.ym }).then(function (s) {
+      btn.disabled = false;
+      if (!s || !s.ok) { prog.textContent = '彙整表失敗，請再按一次'; return toast(esc((s && s.msg) || '彙整表失敗'), 4200); }
+      prog.textContent = '全部完成'; $('#pkdone').innerHTML = '<div class="card" style="margin-top:14px">已存到雲端硬碟資料夾　<a href="' + esc(s.folder) + '" target="_blank">開啟資料夾</a>　　<a href="' + esc(s.url) + '" target="_blank">開啟彙整表</a></div>';
+    });
+  });
+}
+
+/* ---- 事件（第 3 棒） ---- */
+document.addEventListener('click', function (e) {
+  var t = e.target.closest('[data-act]'); if (!t) return; var a = t.dataset.act;
+  if (a === 'mode') { S.mode = t.dataset.v; try { localStorage.setItem('cn_mode', S.mode); } catch (x) {} renderQuotes(); }
+  else if (a === 'rowpdf') rowPdf(t.dataset.no, t);
+  else if (a === 'paynew') openPayModal('營業'); else if (a === 'gennew') openPayModal('代收代付'); else if (a === 'paysave') paySave(t.dataset.n);
+  else if (a === 'crnew') openCreditModal(); else if (a === 'crsave') creditSave();
+  else if (a === 'payrev') payRev(t.dataset.id); else if (a === 'crvoid') crVoid(t.dataset.id);
+  else if (a === 'brsave') brSave();
+  else if (a === 'blprev') blPreview(); else if (a === 'blapply') blApply(); else if (a === 'blundo') blUndo();
+  else if (a === 'packcheck') packCheck(); else if (a === 'packrun') packRun();
+  else if (a === 'synopen') syncOpen(); else if (a === 'syngo') syncGo(); else if (a === 'synrecheck') { S.sync = null; syncPaint(); syncLoad(true); }
+});
+document.addEventListener('change', function (e) {
+  var t = e.target; if (!t || !t.dataset) return;
+  if (t.dataset.lf) lfChange(t);
+  else if (t.id === 'pc') { S.pc = t.value; loadPays(); } else if (t.id === 'pm') { S.pm = t.value; loadPays(); }
+  else if (t.id === 'dm') { S.dm = t.value; renderDone(); }
+  else if (t.id === 'f_designer' && E) api('saveDesigner', { no: E.no, designer: t.value }).then(function (r) { if (!r.ok) return toast(esc(r.msg), 4200); E.designer = r.row['設計師'] || ''; setRow(r.row); toast('設計師已儲存'); });
+  else if (t.dataset.dz) api('saveDesigner', { no: t.dataset.dz, designer: t.value }).then(function (r) { if (!r.ok) return toast(esc(r.msg), 4200); setRow(r.row); toast('已儲存'); });
+  else if (t.dataset.bk !== undefined) blSyncSum();
+  else if (t.id === 'f_allbranch2' && E) { document.querySelectorAll('[data-bi]').forEach(function (s) { s.value = t.value; }); }
+  else if (t.id === 'f_allbranch' && E) { E.lines.forEach(function (l) { l.branch = t.value; }); renderLines(); refresh(); }
+});
+document.addEventListener('input', function (e) { if (e.target.id === 'bl_total') e.target.dataset.touched = 1; });
+
 /* ============ 事件 ============ */
 document.addEventListener('click', function (e) {
   var t = e.target.closest('[data-act]'); if (!t) return; var a = t.dataset.act;
@@ -623,7 +973,7 @@ document.addEventListener('change', function (e) {
   else if (t.dataset.lk === 'code') autofill(+t.dataset.li);
   else if (t.dataset.tk === 'on') { E.terms[+t.dataset.ti].on = t.checked; refresh(); }
 });
-['render', 'renderEditor', 'renderLines', 'renderTerms', 'renderQuotes', 'renderMaster', 'renderUsers', 'drawUsers'].forEach(function (n) { var f = window[n]; window[n] = function () { RENDERING++; try { return f.apply(this, arguments); } finally { RENDERING--; } }; });
+['render', 'renderEditor', 'renderLines', 'renderTerms', 'renderQuotes', 'renderMaster', 'renderUsers', 'drawUsers', 'renderBilling', 'renderPays', 'renderDone', 'renderPack', 'drawBill'].forEach(function (n) { var f = window[n]; window[n] = function () { RENDERING++; try { return f.apply(this, arguments); } finally { RENDERING--; } }; });
 document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.id === 'lg_code') doLogin(); });
 start();
 </script>
