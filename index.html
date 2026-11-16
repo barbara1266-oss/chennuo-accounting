@@ -835,14 +835,14 @@ function ovShell(z) {
 function ovLoad(z) {
   z = z || ovZ();
   return api('billingOverview', { zone: z }).then(function (r) {
-    if (!r || !r.ok) { var el = $('#ovbody'); if (el) el.innerHTML = '<div class="card empty">' + esc((r && r.msg) || '載入失敗') + '</div>'; return; }
+    if (!r || !r.ok) { var el = $('#ovbody'), o0 = $('#ov'); if (el && o0 && o0.dataset.z === z) el.innerHTML = '<div class="card empty">' + esc((r && r.msg) || '載入失敗') + '</div>'; return; }
     S.ov[z] = r; ovDraw(z);
   });
 }
 function ovZ() { var o = $('#ov'); return o ? o.dataset.z : (S.view === 'pack' ? 'M' : 'G'); }
 function ovPass(f, x) { return (!f.cust || String(x.cust) === f.cust) && (!f.ym || String(x.start || x.date || '').slice(0, 7) === f.ym); }
 function ovDraw(z) {
-  var el = $('#ovbody'), r = S.ov[z]; if (!el || !r) return; var f = ovF(z);
+  var el = $('#ovbody'), r = S.ov[z], o = $('#ov'); if (!el || !r || !o || o.dataset.z !== z) return; var f = ovF(z);
   var all = r.rows.filter(function (x) { return ovPass(f, x); }), un = all.filter(function (x) { return x.state === 'unbilled'; }), up = all.filter(function (x) { return x.state === 'unpaid'; });
   var amt = function (a, k) { return a.reduce(function (s2, x) { return s2 + (Number(x[k]) || 0); }, 0); };
   var rows = all.filter(function (x) { return !f.st || x.state === f.st; });
