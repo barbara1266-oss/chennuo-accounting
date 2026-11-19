@@ -554,6 +554,7 @@ function renderEditor() {
     (E.status !== '草稿' ? (S.user.role === '老闆' ? '<button class="btn" data-act="copycur">複製為新報價</button>' : '') + (E.pdf ? '<a class="btn" target="_blank" href="' + esc(E.pdf) + '">開啟雲端 PDF</a>' : '') + (S.user.role === '老闆' ? '<button class="btn dark" data-act="pdf">產出 PDF 存雲端硬碟</button>' + (E.status === '已鎖定' ? '<button class="btn" data-act="void">作廢並重開</button>' : '') : '') :
       (S.user.role === '老闆' ? '<button class="btn" data-act="save">儲存草稿</button><button class="btn pri" data-act="lock">送出並鎖定</button>' : '')) + '</div>' +
     ((E.replaces || E.voidReason || E.imported || E.invNo || (E.status === '草稿' && E._orig != null && E._orig !== '')) ? '<div class="card" id="info" style="padding:12px 18px;margin-bottom:14px;font-size:14px;color:var(--mute)">' + (E.imported ? 'Ragic 匯入舊單（原編號 ' + esc(E.ragicNo) + '），金額照原值保留　' : '') + (E.replaces ? '這張是重開單，取代 <b>' + esc(E.replaces) + '</b>　' : '') + (E.voidReason ? '已作廢，原因：' + esc(E.voidReason) + '　' : '') + (E.invNo ? '發票 ' + esc(E.invNo) + (E.invDate ? '（' + esc(E.invDate.replace(/-/g, '/')) + '）' : '') + '　' : '') + '<span id="recalc"></span></div>' : '') +
+    ((E.status === '已鎖定' && isBoss() && !E.invNo && !E.billNo && (E.invoice === '開發票' || E.invoice === '免開發票')) ? '<div class="card" style="padding:12px 18px;margin-bottom:14px;font-size:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">發票類型：<b>' + esc(E.invoice) + '</b><button class="btn sm" type="button" data-act="invtype" data-k="' + (E.invoice === '開發票' ? '免開發票' : '開發票') + '">改為「' + (E.invoice === '開發票' ? '免開發票' : '開發票') + '」</button><span style="color:var(--mute);font-size:13px">還沒有發票號碼與收款時才能切換，稅額與總額會自動重算並留下紀錄</span></div>' : '') +
     '<div class="ed"><div><fieldset ' + (locked ? 'disabled' : '') + ' style="border:0;margin:0;padding:0;min-width:0">' +
     '<div class="card sec"><h3>基本資料' + (locked ? '' : '<button class="btn sm" data-act="copyprev" type="button">複製這位客戶的上一張</button>') + '</h3><div class="grid2"><div><label class="f">客戶</label><select class="in" id="f_cust">' + custOpts + '</select></div><div><label class="f">案型</label><select class="in" id="f_kind">' + kindOpts + '</select></div>' +
     '<div style="grid-column:1/-1"><label class="f">專案名稱</label><input class="in" data-k="project" value="' + esc(E.project) + '"></div>' +
@@ -997,15 +998,16 @@ var RG_DEF = [
   ['items', '收費明細', ['產品編號', '單價']],
   ['quotes', '一般報價單', ['報價單編號', '小計']],
   ['lines', '報價明細', ['專案名稱', '金額']],
-  ['pays', '收款與發票', ['Ragic_ID', '發票號碼', '總金額(含稅)']]
+  ['pays', '收款與發票', ['Ragic_ID', '發票號碼', '總金額(含稅)']],
+  ['wrap', '完工彙總', ['報價單編號', '發票號碼', '收款日期', '成本支出']]
 ];
 function rgRead(key, f) {
   var rd = new FileReader();
   rd.onload = function () {
     var buf = rd.result, txt; try { txt = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (e) { try { txt = new TextDecoder('big5').decode(buf); } catch (e2) { return toast('讀不出檔案內容，請確認是 CSV'); } }
-    var t = csvParse(txt), H = (t[0] || []).map(function (x) { return String(x).trim(); }), def = RG_DEF.filter(function (d) { return d[0] === key; })[0];
+    var t = csvParse(txt), H = (t[0] || []).map(function (x) { return String(x).trim().replace(/（/g, '(').replace(/）/g, ')'); }), def = RG_DEF.filter(function (d) { return d[0] === key; })[0];
     var miss = def[2].filter(function (n) { return H.indexOf(n) < 0; });
-    var rows = t.slice(1).filter(function (r) { return r.some(function (c) { return String(c).trim() !== ''; }); }).map(function (r) { var o = {}; H.forEach(function (h, i) { if (h && r[i] != null && String(r[i]).trim() !== '') o[h] = r[i]; }); return o; });
+    var rows = t.slice(1).filter(function (r) { return r.some(function (c) { return String(c).trim() !== ''; }); }).map(function (r) { var o = {}; var sn = {}; H.forEach(function (h, i) { if (!h || sn[h]) return; sn[h] = 1; if (r[i] != null && String(r[i]).trim() !== '') o[h] = r[i]; }); return o; });
     RG.files[key] = { name: f.name, rows: rows, miss: miss }; RG.pv = null; rgPaint();
   };
   rd.readAsArrayBuffer(f);
@@ -1060,7 +1062,13 @@ function rgDraw() {
   h += rgSec('找不到對應報價單', P.noquote.length, 'p-bad', rgTbl(PH, P.noquote.map(pr)), true);
   h += rgSec('同單號有多張，無法判斷', P.ambiguous.length, 'p-bad', rgTbl(PH.concat(['候選']), P.ambiguous.map(function (x) { return pr(x).replace('</tr>', '<td>' + esc(x.opts.join(' ／ ')) + '</td></tr>'); })), true);
   h += rgSec('資料有問題，不匯入', P.bad.length, 'p-bad', rgTbl(PH, P.bad.map(pr)), true);
-  var n = p.customers.add.length + p.items.add.length + p.quotes.add.length + P.okN + P.unpaidN + P.split.length;
+  var MM = p.mismatch || [];
+  var W = p.wrap || { ok: [], bad: [], T: {} }, wl = function (x) { return '<tr><td>' + esc(x.ref) + '</td><td>' + esc(x.no) + '</td><td>' + esc(x.name) + '</td><td>' + esc([x.inv ? '補發票 ' + x.inv + '（' + x.invDate + '）' : '', x.pay ? '收款 ' + money(x.pay) + '（' + x.payDate + '）' : '', x.cost ? '成本 ' + money(x.cost) : ''].filter(Boolean).join('、')) + '</td><td style="color:#c98a00">' + esc(x.note) + '</td></tr>'; };
+  h += rgSec('完工彙總：可補進系統的發票／收款／成本', W.ok.length, 'p-ok', rgTbl(['Ragic 單號', '系統單號', '客戶', '會補', '提醒'], W.ok.map(wl)), true);
+  h += rgSec('完工彙總：有疑點，不匯入', W.bad.length, 'p-warn', rgTbl(['Ragic 單號', '系統單號', '客戶', '會補', '提醒'], W.bad.map(wl)), true);
+  if (W.T && W.T.rows) h += '<div style="font-size:13px;color:var(--mute);margin-top:6px">完工彙總共 ' + W.T.rows + ' 列，其中 ' + W.T.noquote + ' 列系統裡沒有這張單（多半是舊單，不處理）。</div>';
+  h += rgSec('對不上帳清單（只列系統裡有報價單的；請財務逐筆確認，之後不要再發生）', MM.length, MM.length ? 'p-bad' : 'p-ok', rgTbl(['類型', '單號', '發票', '金額', '說明'], MM.map(function (x) { return '<tr><td>' + esc(x.kind) + '</td><td>' + esc(x.ref) + '</td><td>' + esc(x.inv) + '</td><td class="num">' + (x.amt === '' || x.amt == null ? '' : money(x.amt)) + '</td><td>' + esc(x.why) + '</td></tr>'; })), true);
+  var n = p.customers.add.length + p.items.add.length + p.quotes.add.length + P.okN + P.unpaidN + P.split.length + ((p.wrap && p.wrap.ok) || []).length;
   h += '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">' + (n ? '<button class="btn pri" data-act="rggo">確認並寫入</button>' : '<span style="color:var(--mute)">沒有需要新增的資料</span>') + '</div><div id="rgmsg"></div>';
   el.innerHTML = h;
 }
@@ -1069,14 +1077,14 @@ function rgGo() {
   document.querySelectorAll('#rgpv [data-rgs]').forEach(function (i) { var a = i.dataset.rgs.split('|'), v = Number(i.value); if (v > 0) { (split[a[0]] = split[a[0]] || {})[a[1]] = v; } });
   p.pays.split.forEach(function (x) { if (split[x.id] && x.opts.some(function (n) { return !(split[x.id][n] > 0); })) bad = true; });
   if (bad) return toast('有拆分的發票只填了一部分，請填完或全部清空', 5000);
-  if (!confirm('即將寫入：客戶 ' + p.customers.add.length + '、收費明細 ' + p.items.add.length + '、報價單 ' + p.quotes.add.length + '、收款 ' + (p.pays.okN + Object.keys(split).reduce(function (s, k) { return s + Object.keys(split[k]).length; }, 0)) + ' 筆。已有的資料不會被改動，之後可整批復原。確定嗎？')) return;
+  if (!confirm('即將寫入：客戶 ' + p.customers.add.length + '、收費明細 ' + p.items.add.length + '、報價單 ' + p.quotes.add.length + '、完工彙總補資料 ' + ((p.wrap && p.wrap.ok) || []).length + ' 張、收款 ' + (p.pays.okN + Object.keys(split).reduce(function (s, k) { return s + Object.keys(split[k]).length; }, 0)) + ' 筆。已有的資料不會被改動，之後可整批復原。確定嗎？')) return;
   var d = { batchId: 'BR' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), sig: p.sig, decisions: { split: split } };
   RG_DEF.forEach(function (x) { d[x[0]] = ((RG.files[x[0]] || {}).rows) || []; });
   var b = $('[data-act=rggo]'); b.disabled = true;
   api('ragicSyncApply', d).then(function (r) {
     b.disabled = false; if (!r || !r.ok) return toast(esc((r && r.msg) || '寫入失敗'), 7000);
     RG.batch = r.batchId; try { localStorage.setItem('cn_rg_batch', RG.batch); } catch (x) {} RG.pv = null; RG.files = {};
-    var o = r.out || {}; rgPaint(); $('#rgpv').innerHTML = '<div class="card" style="background:#e1f3ea"><b>已寫入</b>：客戶 ' + (o.c || 0) + '、收費明細 ' + (o.i || 0) + '、報價單 ' + (o.q || 0) + '（明細 ' + (o.l || 0) + ' 列）、收款 ' + (o.p || 0) + ' 筆、補發票號碼 ' + (o.f || 0) + ' 張。' + (r.dup ? '（這一批之前已寫入）' : '') + '</div>';
+    var o = r.out || {}; rgPaint(); $('#rgpv').innerHTML = '<div class="card" style="background:#e1f3ea"><b>已寫入</b>：客戶 ' + (o.c || 0) + '、收費明細 ' + (o.i || 0) + '、報價單 ' + (o.q || 0) + '（明細 ' + (o.l || 0) + ' 列）、收款 ' + (o.p || 0) + ' 筆、補發票號碼 ' + (o.f || 0) + ' 張、成本 ' + (o.k || 0) + ' 筆。' + (r.dup ? '（這一批之前已寫入）' : '') + '</div>';
     rgReload();
   });
 }
@@ -1085,7 +1093,7 @@ function rgUndo() {
   if (!RG.batch) return; if (!confirm('確定要復原 ' + RG.batch + ' 這一次同步嗎？這一批新增的資料會移除、收款會沖銷。')) return;
   api('ragicSyncUndo', { batchId: RG.batch }).then(function (r) {
     if (!r || !r.ok) return toast(esc((r && r.msg) || '復原失敗'), 8000);
-    RG.batch = ''; try { localStorage.removeItem('cn_rg_batch'); } catch (x) {} rgPaint(); $('#rgpv').innerHTML = '<div class="card" style="background:#fff4d6">已復原：收款沖銷 ' + r.pays + '、報價單 ' + r.quotes + '、客戶 ' + r.customers + '、收費明細 ' + r.items + '、發票號碼 ' + r.invoices + (r.keptCustomers ? '（有 ' + r.keptCustomers + ' 位客戶因仍被報價單使用而保留）' : '') + '</div>';
+    RG.batch = ''; try { localStorage.removeItem('cn_rg_batch'); } catch (x) {} rgPaint(); $('#rgpv').innerHTML = '<div class="card" style="background:#fff4d6">已復原：成本作廢 ' + (r.costs || 0) + '、收款沖銷 ' + r.pays + '、報價單 ' + r.quotes + '、客戶 ' + r.customers + '、收費明細 ' + r.items + '、發票號碼 ' + r.invoices + (r.keptCustomers ? '（有 ' + r.keptCustomers + ' 位客戶因仍被報價單使用而保留）' : '') + '</div>';
     rgReload();
   });
 }
@@ -1448,6 +1456,10 @@ document.addEventListener('click', function (e) {
   else if (a === 'back') { E = null; render(); }
   else if (a === 'addline') { E.lines.push(blankLine()); renderLines(); refresh(); }
   else if (a === 'delline') { E.lines.splice(+t.dataset.i, 1); renderLines(); refresh(); }
+  else if (a === 'invtype') {
+    var tv = t.dataset.k, why = prompt('改為「' + tv + '」，請簡短寫原因（會留紀錄）：', ''); if (why === null) return;
+    api('saveListField', { no: E.no, field: 'invtype', value: tv, reason: why }).then(function (r) { if (r && r.ok) { toast('已改為' + tv); openQuote(E.no); } else toast(esc((r && r.msg) || '切換失敗'), 4200); });
+  }
   else if (a === 'copyprev') copyPrev();
   else if (a === 'copycur') { var q = JSON.parse(JSON.stringify(E)); newQuote(q); toast('已複製為新報價，請確認內容'); }
   else if (a === 'reloadterms') { loadTerms(); renderTerms(); refresh(); }
