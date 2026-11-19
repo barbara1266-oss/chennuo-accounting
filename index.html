@@ -549,7 +549,7 @@ function renderEditor() {
   var locked = ro(), custOpts = '<option value="">— 選擇客戶 —</option>' + S.customers.filter(function (c) { return verOf(c) === (E.ver === 'M' ? 'M' : 'G') || c['客戶編號'] === E.custNo; }).map(function (c) { return '<option value="' + esc(c['客戶編號']) + '"' + (c['客戶編號'] === E.custNo ? ' selected' : '') + '>' + esc(c['客戶編號'] + '　' + c['公司']) + '</option>'; }).join('');
   var kindOpts = '<option value="">— 選擇案型 —</option>' + S.kinds.map(function (k) { return '<option' + (k === E.kind ? ' selected' : '') + '>' + k + '</option>'; }).join('');
   $('#main').innerHTML = '<div class="bar"><button class="btn" data-act="back">← 返回列表</button><b style="font-size:17px">' + esc(E.no || '新報價單（儲存後產生編號）') + '</b><span class="badge ' + bcls(E.status) + '">' + esc(stTxt(E.status)) + '</span><span class="badge" style="background:#eee">' + (E.ver === 'M' ? '梅科版' : '一般版') + '</span><div style="flex:1"></div>' +
-    (S.user.role === '老闆' && E.no && E.status !== '已作廢' ? '<button class="btn" data-act="cfolder" data-no="' + esc(E.no) + '">📁 案件資料夾</button>' : '') +
+    (S.user.role === '老闆' && E.no && E.status !== '已作廢' ? '<button class="btn" data-act="cfolder" data-no="' + esc(E.no) + '">📁 案件資料夾</button><button class="btn" data-act="costopen" data-no="' + esc(E.no) + '">💰 成本</button>' : '') +
     '<button class="btn" data-act="print">列印／另存 PDF</button>' +
     (E.status !== '草稿' ? (S.user.role === '老闆' ? '<button class="btn" data-act="copycur">複製為新報價</button>' : '') + (E.pdf ? '<a class="btn" target="_blank" href="' + esc(E.pdf) + '">開啟雲端 PDF</a>' : '') + (S.user.role === '老闆' ? '<button class="btn dark" data-act="pdf">產出 PDF 存雲端硬碟</button>' + (E.status === '已鎖定' ? '<button class="btn" data-act="void">作廢並重開</button>' : '') : '') :
       (S.user.role === '老闆' ? '<button class="btn" data-act="save">儲存草稿</button><button class="btn pri" data-act="lock">送出並鎖定</button>' : '')) + '</div>' +
@@ -680,6 +680,7 @@ function lfHTML(r) {
 function qRow(r) {
   var no = esc(r['報價單號']), b = isBoss(), st = r['狀態'], lf = lfHTML(r);
   var pdf = st !== '草稿' ? (r['PDF連結'] ? '<a href="' + esc(r['PDF連結']) + '" target="_blank">下載</a>' : '') + (b && st === '已鎖定' && !r['PDF連結'] ? '<button class="btn sm" data-act="rowpdf" data-no="' + no + '">產生</button>' : '') : '';
+  if (isBoss() && st !== '已作廢') pdf += '<button class="btn sm" data-act="costopen" data-no="' + no + '" title="記一筆成本／看成本">💰</button>';
   if (b && st !== '已作廢') pdf += '<button class="btn sm" data-act="cfolder" data-no="' + no + '" title="建立／開啟案件資料夾">' + (r['案件資料夾'] && String(r['案件資料夾']).length > 2 ? '📁✓' : '📁') + '</button>';
   return '<tr class="row" data-no="' + no + '"><td data-act="open" data-no="' + no + '" style="cursor:pointer"><b>' + no + '</b></td><td>' + esc(String(r['報價日期']).replace(/-/g, '/')) + '</td><td data-act="open" data-no="' + no + '" style="cursor:pointer">' + esc(r['公司']) + (ppBal(String(r['客戶編號'])) > 0 ? ' ' + pill('預付餘額 ' + money(ppBal(String(r['客戶編號']))), 'p-warn') : '') + '</td><td data-act="open" data-no="' + no + '" style="cursor:pointer">' + esc(r['專案名稱']) + '</td><td class="num">' + money(r['總金額']) + '</td>' +
     '<td><span class="badge ' + bcls(st) + '">' + esc(stTxt(st)) + '</span>' + (st === '草稿' && !Number(r['總金額']) ? ' ' + pill('待處理', 'p-warn') : '') + '</td><td data-c="done">' + lf.done + '</td><td data-c="ip">' + invPill(r) + '</td><td data-c="inv">' + lf.inv + '</td><td data-c="chk">' + chkCell(r) + '</td><td data-c="prog">' + (st === '已鎖定' ? pill(r['收款進度'] || '未收', progCls(r['收款進度'] || '未收')) : '') + '</td><td>' + pdf + (b ? '<button class="btn sm" data-act="copyq" data-no="' + no + '">複製</button>' : '') + '</td></tr>';
@@ -946,12 +947,14 @@ function blUndo(bid) {
 function openDoneModal(no) {
   var d = document.createElement('div');
   d.innerHTML = '<div class="modal" id="md"><div class="mbox"><h3>標記已完工　' + esc(no) + '</h3><div style="color:var(--mute);font-size:13.5px;margin-bottom:12px">完工日就是「已拖多久」的起算日，可改成實際完工那天。</div><label class="f">完工日</label><input class="in" id="dn_date" type="date" value="' + today() + '" max="' + today() + '"><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button class="btn" data-act="mclose">取消</button><button class="btn pri" data-act="donesave" data-no="' + esc(no) + '">確定完工</button></div></div></div>';
-  document.body.appendChild(d.firstChild);
+  document.body.appendChild(d.firstChild); if (isBoss()) { var dc = document.createElement('div'); dc.id = 'dn_cost'; var bx = $('#md .mbox'); bx.insertBefore(dc, bx.lastElementChild); costDoneBlock(no); }
 }
 function doneSave(no) {
   var r0 = rowBy(no), btn = $('[data-act=donesave]'); btn.disabled = true;
+  var ca = Number(($('#dn_cost_amt') || {}).value) || 0, cn = !!($('#dn_nocost') && $('#dn_nocost').checked);
   api('saveListField', { no: no, field: 'done', value: '是', prev: r0 ? doneOf(r0) : '', date: $('#dn_date').value }).then(function (r) {
     if (!r || !r.ok) { btn.disabled = false; return toast(esc((r && r.msg) || '儲存失敗'), 4200); }
+    if (ca > 0) api('costSave', { no: no, amount: ca, date: $('#dn_date').value, note: '完工時填的成本合計' }); else if (cn) api('noCostSet', { no: no, on: true });
     setRow(r.row); var m = $('#md'); if (m) m.remove(); toast('已標記完工'); if ($('#ov')) { ovF(ovZ()).pendOpen = true; ovLoad(); }
   });
 }
@@ -1068,7 +1071,7 @@ function fzMake(no, M) {
 /* ---- 完工彙總（老闆） ---- */
 function renderDone() {
   S.dq = S.dq || ''; S.dp = S.dp || '全部';
-  $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">完工彙總</h2><input class="in" id="dq" placeholder="搜尋單號、客戶、發票號碼" value="' + esc(S.dq) + '"><div class="chips">' + ['全部', '未收', '已收'].map(function (c) { return '<button class="chip' + (S.dp === c ? ' on' : '') + '" data-act="dpf" data-v="' + c + '">' + c + '</button>'; }).join('') + '</div><div style="flex:1"></div></div><div id="done"><div class="card empty">載入中…</div></div>';
+  $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">完工彙總</h2><input class="in" id="dq" placeholder="搜尋單號、客戶、發票號碼" value="' + esc(S.dq) + '"><div class="chips">' + ['全部', '未收', '已收', '待補成本', '成本待確認'].map(function (c) { return '<button class="chip' + (S.dp === c ? ' on' : '') + '" data-act="dpf" data-v="' + c + '">' + c + '</button>'; }).join('') + '</div><div style="flex:1"></div><button class="btn" data-act="costimp">📥 匯入 Ragic 成本</button></div><div id="done"><div class="card empty">載入中…</div></div>';
   var dq = $('#dq'); dq.addEventListener('input', function () { S.dq = dq.value; var p = dq.selectionStart; debounce(function () { if (S.view !== 'done') return; drawDone(); }, 200); });
   api('doneSummary', { ym: '' }).then(function (r) {
     var el = $('#done'); if (!el) return; if (!r.ok) return el.innerHTML = '<div class="card empty">' + esc(r.msg) + '</div>';
@@ -1078,20 +1081,128 @@ function renderDone() {
 function drawDone() {
   var el = $('#done'); if (!el || !S.dr) return;
   var q = (S.dq || '').toLowerCase(), f = S.dp || '全部';
-  var rows = S.dr.filter(function (x) { var done = /^已收/.test(x.progress) || x.progress === '無應收'; return (f === '全部' || (f === '已收' ? done : !done)) && (!q || JSON.stringify(x).toLowerCase().indexOf(q) >= 0); });
+  var rows = S.dr.filter(function (x) { var done = /^已收/.test(x.progress) || x.progress === '無應收'; var okf = f === '全部' || (f === '待補成本' ? x.need : f === '成本待確認' ? x.chk : (f === '已收' ? done : !done)); return okf && (!q || JSON.stringify(x).toLowerCase().indexOf(q) >= 0); });
   rows.sort(function (a, b) { return String(b.doneDate).localeCompare(String(a.doneDate)) || b.no.localeCompare(a.no); });
   if (!rows.length) return el.innerHTML = '<div class="card empty">沒有符合的案件。</div>';
   var groups = [], gi = {}; rows.forEach(function (x) { var k = x.month || '未標月份'; if (gi[k] === undefined) { gi[k] = groups.length; groups.push({ m: k, rows: [] }); } groups[gi[k]].rows.push(x); });
   var head = '<tr><th>報價單號</th><th>公司</th><th>完工日</th><th>發票號碼</th><th class="num">銷售額</th><th class="num">應收</th><th class="num">已收</th><th>最後收款</th><th class="num">成本</th><th class="num">毛利</th><th>設計師</th><th>進度</th></tr>';
-  var all = { net: 0, cost: 0, profit: 0 }; rows.forEach(function (x) { all.net += x.net; all.cost += x.cost; all.profit += x.profit; });
-  el.innerHTML = '<div style="color:var(--mute);margin:0 4px 12px">共 ' + rows.length + ' 張　營業額 <b style="color:var(--ink)">' + money(r2(all.net)) + '</b>　成本 ' + money(r2(all.cost)) + '　毛利 <b style="color:var(--ink)">' + money(r2(all.profit)) + '</b></div>' +
+  var all = { net: 0, cost: 0, profit: 0, need: 0 }; rows.forEach(function (x) { all.net += x.net; all.cost += x.cost; all.profit += x.profit; if (x.need) all.need++; });
+  el.innerHTML = '<div style="color:var(--mute);margin:0 4px 12px">共 ' + rows.length + ' 張　營業額 <b style="color:var(--ink)">' + money(r2(all.net)) + '</b>　成本 ' + money(r2(all.cost)) + '　毛利 <b style="color:var(--ink)">' + money(r2(all.profit)) + '</b>' + (all.need ? '　<span class="pill p-warn">' + all.need + ' 張待補成本</span>' : '') + '</div>' +
     groups.map(function (g, gx) {
-      var s = { net: 0, cost: 0, profit: 0 }; g.rows.forEach(function (x) { s.net += x.net; s.cost += x.cost; s.profit += x.profit; });
-      return '<details open style="margin-bottom:14px"><summary style="cursor:pointer;padding:10px 6px;font-weight:600;display:flex;gap:18px;flex-wrap:wrap;align-items:baseline"><span style="font-size:16px">' + esc(g.m.replace('-', ' 年 ')) + ' 月</span><span style="color:var(--mute);font-weight:400">' + g.rows.length + ' 張</span><span style="font-weight:400">營業額 <b>' + money(r2(s.net)) + '</b></span><span style="font-weight:400;color:var(--mute)">成本 ' + money(r2(s.cost)) + '</span><span style="font-weight:400">毛利（淨利） <b>' + money(r2(s.profit)) + '</b></span></summary>' +
-        '<div class="sc"><table class="ls nolink">' + head + g.rows.map(function (x) { return '<tr class="row"><td><b>' + esc(x.no) + '</b></td><td>' + esc(x.company) + '</td><td>' + esc(String(x.doneDate).replace(/-/g, '/')) + '</td><td>' + esc(x.invNo) + '</td><td class="num">' + money(x.sales) + '</td><td class="num">' + money(x.receivable) + '</td><td class="num">' + money(x.paid) + '</td><td>' + esc(String(x.lastPaid).replace(/-/g, '/')) + '</td><td class="num">' + money(x.cost) + '</td><td class="num">' + money(x.profit) + '</td><td><input class="mini" data-dz="' + esc(x.no) + '" value="' + esc(x.designer) + '" maxlength="40" style="width:110px"></td><td>' + pill(x.progress, progCls(x.progress)) + '</td></tr>'; }).join('') + '</table></div></details>';
+      var s = { net: 0, cost: 0, profit: 0, need: 0 }; g.rows.forEach(function (x) { s.net += x.net; s.cost += x.cost; s.profit += x.profit; if (x.need) s.need++; });
+      return '<details open style="margin-bottom:14px"><summary style="cursor:pointer;padding:10px 6px;font-weight:600;display:flex;gap:18px;flex-wrap:wrap;align-items:baseline"><span style="font-size:16px">' + esc(g.m.replace('-', ' 年 ')) + ' 月</span><span style="color:var(--mute);font-weight:400">' + g.rows.length + ' 張</span><span style="font-weight:400">營業額 <b>' + money(r2(s.net)) + '</b></span><span style="font-weight:400;color:var(--mute)">成本 ' + money(r2(s.cost)) + '</span><span style="font-weight:400">毛利（淨利） <b>' + money(r2(s.profit)) + '</b></span>' + (s.need ? '<span class="pill p-warn" style="font-weight:400">' + s.need + ' 張待補成本</span>' : '') + '</summary>' +
+        '<div class="sc"><table class="ls nolink">' + head + g.rows.map(function (x) { return '<tr class="row"><td><b>' + esc(x.no) + '</b></td><td>' + esc(x.company) + '</td><td>' + esc(String(x.doneDate).replace(/-/g, '/')) + '</td><td>' + esc(x.invNo) + '</td><td class="num">' + money(x.sales) + '</td><td class="num">' + money(x.receivable) + '</td><td class="num">' + money(x.paid) + '</td><td>' + esc(String(x.lastPaid).replace(/-/g, '/')) + '</td><td class="num">' + costCell(x) + '</td><td class="num">' + money(x.profit) + '</td><td><input class="mini" data-dz="' + esc(x.no) + '" value="' + esc(x.designer) + '" maxlength="40" style="width:110px"></td><td>' + pill(x.progress, progCls(x.progress)) + '</td></tr>'; }).join('') + '</table></div></details>';
     }).join('');
 }
 function r2(n) { return Math.round(n * 100) / 100; }
+function costCell(x) {
+  var b = x.need ? '<span class="pill p-warn" style="cursor:pointer">待補成本</span>' : (x.noCost && !(x.cost > 0) ? '<span style="color:var(--mute);cursor:pointer">無成本 ✎</span>' : '<span style="cursor:pointer;border-bottom:1px dashed var(--mute)">' + money(x.cost) + (x.chk ? ' <span title="Ragic 匯入，金額待確認" style="color:var(--warn)">⚠</span>' : '') + '</span>');
+  return '<span data-act="costopen" data-no="' + esc(x.no) + '">' + b + '</span>';
+}
+
+/* ---- 案件成本：施工中隨時記一筆，完工彙總自動合併 ---- */
+var CS = null;
+function costKindSkip(k) { return k === '設計類' || k === '系統資訊類' || k === '預付款'; }
+function openCostModal(no) {
+  CS = { no: no, edit: '', d: null };
+  mopen('<h3>案件成本　' + esc(no) + '</h3><div id="csb"><div class="empty">載入中…</div></div>');
+  api('costList', { no: no }).then(function (r) { if (!r || !r.ok) { var m = $('#md'); if (m) m.remove(); return toast(esc((r && r.msg) || '讀取失敗'), 4200); } CS.d = r; costDraw(); });
+}
+function costDraw() {
+  var d = CS && CS.d, el = $('#csb'); if (!d || !el) return;
+  var ed = CS.edit ? d.entries.filter(function (e) { return e.id === CS.edit; })[0] : null;
+  var rows = d.entries.map(function (e) { return '<tr><td>' + esc(e.date.replace(/-/g, '/')) + '</td><td>' + esc(e.vendor) + '</td><td>' + esc(e.note) + (e.src === 'Ragic匯入' ? ' ' + pill('Ragic 匯入', 'p-mute') : '') + (e.chk ? ' ' + pill('待確認', 'p-warn') : '') + '</td><td class="num">' + money(e.amount) + '</td><td style="white-space:nowrap"><button class="btn sm" data-act="costedit" data-id="' + esc(e.id) + '">改</button> <button class="btn sm" data-act="costdel" data-id="' + esc(e.id) + '">刪</button></td></tr>'; }).join('');
+  var vend = (S.vendors || []).map(function (v) { return '<option value="' + esc(v['名稱']) + '">'; }).join('');
+  el.innerHTML = '<div style="color:var(--mute);font-size:13.5px;margin-bottom:10px">' + esc(d.company || '') + (d.project ? '｜' + esc(d.project) : '') + '　銷售額（未稅） ' + money(d.sales) + '</div>' +
+    (rows ? '<div class="sc"><table class="ls nolink"><tr><th>日期</th><th>廠商</th><th>備註</th><th class="num">金額</th><th></th></tr>' + rows + '</table></div>' : '<div class="empty" style="padding:10px 0">還沒有記錄的成本。</div>') +
+    (d.lineCost ? '<div style="color:var(--mute);margin-top:8px;font-size:13.5px">另外，報價單明細列上已填的成本 ' + money(d.lineCost) + '（要改請到報價單裡改）</div>' : '') +
+    '<div style="margin:12px 0;font-size:15px">成本合計 <b>' + money(d.total) + '</b>　預估毛利 <b>' + money(r2(d.sales - d.total)) + '</b>' + (d.noCost ? '　' + pill('已標示確定無成本', 'p-ok') : '') + '</div>' +
+    '<div style="border-top:1px solid var(--line,#eee);padding-top:12px"><div style="font-weight:600;margin-bottom:8px">' + (ed ? '修改這一筆' : '＋ 記一筆成本') + '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px"><div><label class="f">日期</label><input class="in" id="cs_date" type="date" value="' + esc(ed ? ed.date : today()) + '"></div><div><label class="f">金額</label><input class="in" id="cs_amt" type="number" inputmode="decimal" min="0" step="any" placeholder="例如 1200" value="' + (ed ? ed.amount : '') + '"></div><div><label class="f">廠商（選填）</label><input class="in" id="cs_vendor" list="dlcsv" value="' + esc(ed ? ed.vendor : '') + '"><datalist id="dlcsv">' + vend + '</datalist></div><div><label class="f">備註（選填）</label><input class="in" id="cs_note" value="' + esc(ed ? ed.note : '') + '" maxlength="200"></div></div></div>' +
+    '<div style="display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-top:18px"><div>' + (d.total > 0 ? '' : '<button class="btn" data-act="costnone">' + (d.noCost ? '取消「確定無成本」' : '這張確定沒有成本') + '</button>') + '</div><div style="display:flex;gap:10px">' + (ed ? '<button class="btn" data-act="costcancel">取消修改</button>' : '') + '<button class="btn" data-act="mclose">關閉</button><button class="btn pri" data-act="costsave">' + (ed ? '儲存修改' : '記下這筆') + '</button></div></div>';
+}
+function costSync(r) {
+  if (!S.dr) return; var x = S.dr.filter(function (y) { return y.no === r.no; })[0]; if (!x) return;
+  x.cost = r.total; x.profit = r2(x.net - r.total); x.noCost = !!r.noCost; x.ce = r.entries.length; x.chk = r.entries.some(function (e) { return e.chk; }); x.need = !(r.total > 0) && !r.noCost && !costKindSkip(x.kind);
+  if (S.view === 'done') drawDone();
+}
+function costSave() {
+  var amt = Number($('#cs_amt').value); if (!(amt > 0)) return toast('金額請填大於 0 的數字');
+  var btn = $('[data-act=costsave]'); btn.disabled = true;
+  api('costSave', { no: CS.no, id: CS.edit, date: $('#cs_date').value, vendor: $('#cs_vendor').value, amount: amt, note: $('#cs_note').value }).then(function (r) {
+    if (!r || !r.ok) { btn.disabled = false; return toast(esc((r && r.msg) || '儲存失敗'), 4200); }
+    CS.d = r; CS.edit = ''; costSync(r); costDraw(); toast('已記下');
+  });
+}
+function costDel(id) {
+  if (!confirm('確定刪掉這一筆成本嗎？')) return;
+  api('costDel', { no: CS.no, id: id }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '刪除失敗'), 4200); CS.d = r; CS.edit = ''; costSync(r); costDraw(); });
+}
+function costNone() {
+  api('noCostSet', { no: CS.no, on: !CS.d.noCost }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '儲存失敗'), 4200); CS.d = r; costSync(r); costDraw(); });
+}
+/* 標完工時順手問成本 */
+function costDoneBlock(no) {
+  api('costList', { no: no }).then(function (r) {
+    var el = $('#dn_cost'); if (!el || !r || !r.ok) return;
+    if (r.total > 0) { el.innerHTML = '<div style="margin-top:12px;color:var(--mute)">已記成本 ' + money(r.total) + '</div>'; return; }
+    if (costKindSkip(r.kind) || r.noCost) return;
+    el.innerHTML = '<div style="margin-top:14px;padding:12px;border-radius:14px;background:#fff7e6"><div style="font-weight:600;margin-bottom:6px">這張還沒記成本</div><label class="f">成本合計（選填，之後也能補）</label><input class="in" id="dn_cost_amt" type="number" inputmode="decimal" min="0" step="any" placeholder="例如 3500"><label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:14px"><input type="checkbox" id="dn_nocost" style="width:18px;height:18px"> 這張確定沒有成本</label></div>';
+  });
+}
+
+/* ---- 匯入 Ragic 歷史成本 ---- */
+var RI = { items: [], batch: '' };
+function openCostImport() {
+  RI = { items: [], batch: '' };
+  mopen('<h3>匯入 Ragic 歷史成本</h3><div id="rib"><div style="color:var(--mute);font-size:13.5px;margin-bottom:12px">選擇 Ragic 匯出的 CSV。每張單只匯入「總成本」一筆；已經有成本的單不會動，成本異常的會略過或標示待確認。先預覽，確認後才寫入，之後可整批復原。</div><input type="file" id="rif" accept=".csv,text/csv" style="display:none"><button class="btn pri" data-act="ripick">選擇 CSV 檔</button></div>');
+  $('#md .mbox').style.width = 'min(980px,96vw)';
+  $('#rif').addEventListener('change', function () { var f = this.files[0]; if (f) riRead(f); });
+}
+function riRead(f) {
+  var rd = new FileReader();
+  rd.onload = function () {
+    var buf = rd.result, txt; try { txt = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (e) { try { txt = new TextDecoder('big5').decode(buf); } catch (e2) { return toast('讀不出檔案內容，請確認是 CSV'); } }
+    var t = csvParse(txt), H = t[0] || [], ix = function (n) { return H.indexOf(n); }, cc = [];
+    H.forEach(function (h, i) { if (h === '成本支出' || h === '營業成本') cc.push(i); });
+    if (ix('報價單編號') < 0 || !cc.length) return toast('這個檔案不像 Ragic 成本表（找不到「報價單編號」「成本支出」欄）', 5000);
+    var num = function (v) { var n = Number(String(v == null ? '' : v).replace(/,/g, '')); return isFinite(n) ? n : 0; };
+    var rows = []; t.slice(1).forEach(function (r) {
+      var cost = 0; cc.forEach(function (i) { if (!(cost > 0)) cost = num(r[i]); });
+      if (!(cost > 0)) return; rows.push({ q: String(r[ix('報價單編號')] || '').trim(), cost: cost, sale: num(r[ix('銷售額')]), cust: String(r[ix('公司名稱')] || ''), proj: String(r[ix('專案名稱')] || '') });
+    });
+    if (!rows.length) return toast('檔案裡沒有任何有成本的單');
+    $('#rib').innerHTML = '<div class="empty">比對中（共 ' + rows.length + ' 筆有成本）…</div>';
+    api('costImportPreview', { rows: rows }).then(function (r) { if (!r || !r.ok) { $('#rib').innerHTML = '<div style="color:var(--bad)">' + esc((r && r.msg) || '比對失敗') + '</div>'; return; } RI.items = r.items; RI.cnt = r.count; riDraw(); });
+  };
+  rd.readAsArrayBuffer(f);
+}
+function riDraw() {
+  var it = RI.items, ok = it.filter(function (x) { return x.status === 'ok'; }), fl = it.filter(function (x) { return x.status === 'flag'; }), rest = it.filter(function (x) { return x.status !== 'ok' && x.status !== 'flag'; });
+  var row = function (x, chk) { return '<tr><td>' + (chk ? '<input type="checkbox" data-rik="' + esc(x.no) + '" checked style="width:18px;height:18px;accent-color:#f2a53a">' : '') + '</td><td><b>' + esc(x.no || x.q) + '</b></td><td>' + esc(x.company || x.cust) + '</td><td class="num">' + money(x.sale || x.net) + '</td><td class="num">' + money(x.cost) + '</td><td>' + esc(x.note || '') + '</td></tr>'; };
+  var th = '<tr><th></th><th>單號</th><th>公司</th><th class="num">銷售額</th><th class="num">成本</th><th>說明</th></tr>';
+  var head = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">' + pill('可匯入 ' + ok.length, 'p-ok') + pill('匯入並標待確認 ' + fl.length, 'p-warn') + pill('略過 ' + rest.length, 'p-mute') + '</div>';
+  var tA = ok.length ? '<h4 style="margin:10px 0 6px">可匯入（已勾選，可取消）</h4><div class="sc"><table class="ls nolink">' + th + ok.map(function (x) { return row(x, 1); }).join('') + '</table></div>' : '';
+  var tB = fl.length ? '<h4 style="margin:14px 0 6px">成本高於銷售額（匯入後在完工彙總標 ⚠ 待確認）</h4><div class="sc"><table class="ls nolink">' + th + fl.map(function (x) { return row(x, 1); }).join('') + '</table></div>' : '';
+  var tC = rest.length ? '<details style="margin-top:14px"><summary style="cursor:pointer;color:var(--mute)">略過（' + rest.length + '）：找不到單、已有成本、疑似多打、銷售額為 0…</summary><div class="sc"><table class="ls nolink">' + th + rest.map(function (x) { return row(x, 0); }).join('') + '</table></div></details>' : '';
+  $('#rib').innerHTML = head + tA + tB + tC + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button class="btn" data-act="mclose">關閉</button>' + (ok.length || fl.length ? '<button class="btn pri" data-act="rigo">確認並匯入成本</button>' : '') + '</div>';
+}
+function riGo() {
+  var sel = []; document.querySelectorAll('#md [data-rik]:checked').forEach(function (c) { var x = RI.items.filter(function (y) { return y.no === c.dataset.rik; })[0]; if (x) sel.push({ no: x.no, cost: x.cost, flag: x.status === 'flag' }); });
+  if (!sel.length) return toast('沒有要匯入的項目');
+  if (!confirm('即將匯入 ' + sel.length + ' 張單的成本，確定嗎？（之後可整批復原）')) return;
+  RI.batch = 'BC' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  var btn = $('[data-act=rigo]'); btn.disabled = true;
+  api('costImportApply', { batchId: RI.batch, items: sel }).then(function (r) {
+    btn.disabled = false; if (!r || !r.ok) return toast(esc((r && r.msg) || '寫入失敗'), 6000);
+    $('#rib').innerHTML = '<h4>已匯入 ' + (r.count || sel.length) + ' 張單的成本</h4><div style="color:var(--mute)">完工彙總的成本與毛利已更新。</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button class="btn" data-act="riundo">復原這次匯入</button><button class="btn pri" data-act="mclose">完成</button></div>';
+    if (S.view === 'done') renderDone();
+  });
+}
+function riUndo() {
+  if (!confirm('確定要把這次匯入的成本全部撤銷嗎？')) return;
+  api('costImportUndo', { batchId: RI.batch }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '復原失敗'), 6000); $('#md').remove(); toast('已復原 ' + r.count + ' 筆'); if (S.view === 'done') renderDone(); });
+}
 
 /* ---- 梅科請款包（老闆） ---- */
 function renderPack() {
@@ -1199,7 +1310,7 @@ document.addEventListener('click', function (e) {
   else if (a === 'ovst') { var f0 = ovF(ovZ()); f0.st = f0.st === t.dataset.v ? '' : t.dataset.v; drawBill(); }
   else if (a === 'ovnone') { ovF(ovZ()).sel = {}; drawBill(); } else if (a === 'ovinv') ovInvoice();
   else if (a === 'blapply') blApply(); else if (a === 'blundo') blUndo(t.dataset.b);
-  else if (a === 'markdone') openDoneModal(t.dataset.no); else if (a === 'donesave') doneSave(t.dataset.no);
+  else if (a === 'markdone') openDoneModal(t.dataset.no); else if (a === 'costopen') { e.stopPropagation(); openCostModal(t.dataset.no); } else if (a === 'costsave') costSave(); else if (a === 'costedit') { CS.edit = t.dataset.id; costDraw(); } else if (a === 'costcancel') { CS.edit = ''; costDraw(); } else if (a === 'costdel') costDel(t.dataset.id); else if (a === 'costnone') costNone(); else if (a === 'costimp') openCostImport(); else if (a === 'ripick') $('#rif').click(); else if (a === 'rigo') riGo(); else if (a === 'riundo') riUndo(); else if (a === 'donesave') doneSave(t.dataset.no);
   else if (a === 'cfolder') { e.stopPropagation(); openFolderModal(t.dataset.no); } else if (a === 'fzmake') fzMake(t.dataset.no, t.dataset.m === '1');
   else if (a === 'packcheck') packCheck(); else if (a === 'packrun') packRun();
   else if (a === 'synopen') syncOpen(); else if (a === 'syngo') syncGo(); else if (a === 'synrecheck') { S.sync = null; syncPaint(); syncLoad(true); }
