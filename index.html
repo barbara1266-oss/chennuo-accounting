@@ -532,7 +532,7 @@ function mergeTerms() {
   var have = {}; (E.terms || []).forEach(function (t) { have[t.title] = 1; });
   libTerms().forEach(function (t) { if (!have[t.title]) { t.on = false; E.terms.push(t); } });
 }
-function openQuote(no) { api('getQuote', { no: no }).then(function (r) { if (!r.ok) return toast(esc(r.msg)); E = r.quote; E._orig = E.total; E.terms = (E.terms || []).map(function (t) { t.on = !t.off; return t; }); mergeTerms(); E.bank = S.settings.bank; render(); }); }
+function openQuote(no) { api('getQuote', { no: no }).then(function (r) { if (!r.ok) return toast(esc(r.msg)); E = r.quote; E._orig = E.total; E.terms = (E.terms || []).map(function (t) { t.on = !t.off; return t; }); mergeTerms(); E.bank = S.settings.bank; render(); if (!S.ppLoaded) ppLoad(function () { redrawPay(); }); }); }
 function newQuote(from) {
   E = blankQuote(); E.ver = S.view === 'quotesM' ? 'M' : 'G'; if (!from) loadTerms(); if (from) { E = Object.assign(E, JSON.parse(JSON.stringify(from)), { no: '', status: '草稿', signed: false, date: today(), pdf: '', version: 0, replaces: '', voidReason: '', invState: '', invNo: '', invDate: '', invAmt: '', note: '', imported: false, ragicNo: '', _orig: from.total, rate: null }); if (E.invoice === '待確認') E.invoice = '開發票'; E.terms = (E.terms || []).map(function (t) { t.on = !t.off; return t; }); E.bank = S.settings.bank; calc(E); }
   render();
@@ -681,10 +681,11 @@ function qRow(r) {
   var no = esc(r['報價單號']), b = isBoss(), st = r['狀態'], lf = lfHTML(r);
   var pdf = st !== '草稿' ? (r['PDF連結'] ? '<a href="' + esc(r['PDF連結']) + '" target="_blank">下載</a>' : '') + (b && st === '已鎖定' && !r['PDF連結'] ? '<button class="btn sm" data-act="rowpdf" data-no="' + no + '">產生</button>' : '') : '';
   if (b && st !== '已作廢') pdf += '<button class="btn sm" data-act="cfolder" data-no="' + no + '" title="建立／開啟案件資料夾">' + (r['案件資料夾'] && String(r['案件資料夾']).length > 2 ? '📁✓' : '📁') + '</button>';
-  return '<tr class="row" data-no="' + no + '"><td data-act="open" data-no="' + no + '" style="cursor:pointer"><b>' + no + '</b></td><td>' + esc(String(r['報價日期']).replace(/-/g, '/')) + '</td><td data-act="open" data-no="' + no + '" style="cursor:pointer">' + esc(r['公司']) + '</td><td data-act="open" data-no="' + no + '" style="cursor:pointer">' + esc(r['專案名稱']) + '</td><td class="num">' + money(r['總金額']) + '</td>' +
+  return '<tr class="row" data-no="' + no + '"><td data-act="open" data-no="' + no + '" style="cursor:pointer"><b>' + no + '</b></td><td>' + esc(String(r['報價日期']).replace(/-/g, '/')) + '</td><td data-act="open" data-no="' + no + '" style="cursor:pointer">' + esc(r['公司']) + (ppBal(String(r['客戶編號'])) > 0 ? ' ' + pill('預付餘額 ' + money(ppBal(String(r['客戶編號']))), 'p-warn') : '') + '</td><td data-act="open" data-no="' + no + '" style="cursor:pointer">' + esc(r['專案名稱']) + '</td><td class="num">' + money(r['總金額']) + '</td>' +
     '<td><span class="badge ' + bcls(st) + '">' + esc(stTxt(st)) + '</span>' + (st === '草稿' && !Number(r['總金額']) ? ' ' + pill('待處理', 'p-warn') : '') + '</td><td data-c="done">' + lf.done + '</td><td data-c="ip">' + invPill(r) + '</td><td data-c="inv">' + lf.inv + '</td><td data-c="chk">' + chkCell(r) + '</td><td data-c="prog">' + (st === '已鎖定' ? pill(r['收款進度'] || '未收', progCls(r['收款進度'] || '未收')) : '') + '</td><td>' + pdf + (b ? '<button class="btn sm" data-act="copyq" data-no="' + no + '">複製</button>' : '') + '</td></tr>';
 }
 function renderQuotes() {
+  if (!S.ppLoaded && !S.ppLoading) { S.ppLoading = true; ppLoad(function () { S.ppLoading = false; if (S.view === 'quotesG' || S.view === 'quotesM') renderQuotes(); }); }
   var zM = S.view === 'quotesM', modeF = function (r) { return zM ? r['版型'] === 'M' : r['版型'] !== 'M'; };
   var list = S.quotes.filter(function (r) { return modeF(r) && (S.filter === '全部' || r['狀態'] === S.filter) && (!S.q || JSON.stringify(r).toLowerCase().indexOf(S.q.toLowerCase()) >= 0); })
     .sort(function (a, b) { return String(b['報價單號']).localeCompare(String(a['報價單號'])); });
@@ -745,11 +746,12 @@ function rowPdf(no, btn) {
 /* ---- 報價單內：收款、折讓、設計師 ---- */
 function payInner() {
   var p = E.pay, boss = isBoss(), live = E.status === '已鎖定';
-  var h = '<h3>收款與折讓<span>' + pill(p.progress, progCls(p.progress)) + (live ? ' <button class="btn sm" data-act="paynew" type="button">＋ 記一筆收款</button>' + (boss ? ' <button class="btn sm" data-act="crnew" type="button">折讓／讓價</button>' : '') : '') + '</span></h3>';
-  h += '<div style="display:flex;gap:22px;flex-wrap:wrap;margin-bottom:12px;color:var(--mute)"><span>應收 <b style="color:var(--ink)">' + money(p.receivable) + '</b></span><span>已收 <b style="color:var(--ink)">' + money(p.paid) + '</b></span><span>尚差 <b style="color:var(--ink)">' + money(p.diff) + '</b></span>' + (p.credit ? '<span>已折讓 <b style="color:var(--ink)">' + money(p.credit) + '</b></span>' : '') + '</div>';
+  var h = '<h3>收款與折讓<span>' + pill(p.progress, progCls(p.progress)) + (live ? ' <button class="btn sm" data-act="paynew" type="button">＋ 記一筆收款</button>' + (ppCan() ? ' <button class="btn sm" data-act="ppuse" type="button">預付抵扣</button>' : '') + (boss ? ' <button class="btn sm" data-act="crnew" type="button">折讓／讓價</button>' : '') : '') + '</span></h3>';
+  h += '<div style="display:flex;gap:22px;flex-wrap:wrap;margin-bottom:12px;color:var(--mute)"><span>應收 <b style="color:var(--ink)">' + money(p.receivable) + '</b></span><span>已收 <b style="color:var(--ink)">' + money(p.paid) + '</b></span><span>尚差 <b style="color:var(--ink)">' + money(p.diff) + '</b></span>' + (p.prepaid ? '<span>預付抵扣 <b style="color:var(--ink)">' + money(p.prepaid) + '</b></span>' : '') + (p.credit ? '<span>已折讓 <b style="color:var(--ink)">' + money(p.credit) + '</b></span>' : '') + '</div>';
+  h += ppInfoHTML();
   var ps = p.payments || [];
   h += ps.length ? '<table class="ls nolink"><tr><th>日期</th><th class="num">金額</th><th>類型</th><th>方式</th><th>後5碼</th><th>狀態</th><th></th></tr>' + ps.map(function (x) {
-    return '<tr class="row"><td>' + esc(String(x['收款日期']).replace(/-/g, '/')) + '</td><td class="num">' + money(x['金額']) + '</td><td>' + esc(x['類型']) + (x['性質'] === '代收代付' ? ' <span class="tag">代收代付</span>' : '') + '</td><td>' + esc(x['方式']) + '</td><td>' + esc(x['匯款後5碼']) + '</td><td>' + (x['狀態'] === '已沖銷' ? '<span style="color:var(--mute)">已沖銷：' + esc(x['沖銷原因']) + '</span>' : '有效') + '</td><td>' + (boss && x['狀態'] !== '已沖銷' ? '<button class="btn sm" data-act="payrev" data-id="' + esc(x['收款ID']) + '" type="button">沖銷</button>' : '') + '</td></tr>';
+    return '<tr class="row"><td>' + esc(String(x['收款日期']).replace(/-/g, '/')) + '</td><td class="num">' + money(x['金額']) + '</td><td>' + esc(x['類型']) + (x['性質'] === '代收代付' ? ' <span class="tag">代收代付</span>' : '') + (x['性質'] === '預付抵扣' ? ' <span class="tag">用 ' + esc(x['預付單號']) + '（稅外 ' + money(x['稅外額']) + '）</span>' : '') + '</td><td>' + esc(x['方式']) + '</td><td>' + esc(x['匯款後5碼']) + '</td><td>' + (x['狀態'] === '已沖銷' ? '<span style="color:var(--mute)">已沖銷：' + esc(x['沖銷原因']) + '</span>' : '有效') + '</td><td>' + (boss && x['狀態'] !== '已沖銷' ? '<button class="btn sm" data-act="payrev" data-id="' + esc(x['收款ID']) + '" type="button">沖銷</button>' : '') + '</td></tr>';
   }).join('') + '</table>' : '<div style="color:var(--mute);padding:6px 4px">還沒有收款紀錄</div>';
   var cs = p.credits || [];
   if (cs.length) h += '<div style="margin-top:12px;font-weight:600">折讓／讓價</div><table class="ls nolink"><tr><th>日期</th><th class="num">合計</th><th>原因</th><th>狀態</th><th></th></tr>' + cs.map(function (x) {
@@ -760,8 +762,41 @@ function payInner() {
 }
 function payCardHTML() { return (E.no && E.status !== '草稿' && E.pay) ? '<div class="card sec" id="paycard">' + payInner() + '</div>' : ''; }
 function redrawPay() { var c = $('#paycard'); if (c && E && E.pay) c.innerHTML = payInner(); }
-function afterPay(r) { if (r.quote && E && E.no === r.quote.no) { E.pay = r.quote.pay; redrawPay(); } setRow(r.row); }
+function afterPay(r) { if (r.quote && E && E.no === r.quote.no) { E.pay = r.quote.pay; redrawPay(); } setRow(r.row); if (!r.prepaid) ppLoad(redrawPay); }
 function mopen(html) { var d = document.createElement('div'); d.innerHTML = '<div class="modal" id="md"><div class="mbox">' + html + '</div></div>'; document.body.appendChild(d.firstChild); }
+
+/* ---- 預付款 ---- */
+S.pp = S.pp || {};
+function ppLoad(cb) { api('prepaidAll').then(function (r) { if (r && r.ok) S.pp = r.map || {}; S.ppLoaded = true; if (cb) cb(); }, function () { S.ppLoaded = true; if (cb) cb(); }); }
+function ppBal(cust) { var o = S.pp && S.pp[cust]; return o ? o.balance : 0; }
+function ppCan() { return !!(E && E.status === '已鎖定' && isBoss() && E.invoice === '開發票' && !E.invNo && E.kind !== '預付款' && E.pay && E.pay.diff > 0 && ppBal(E.custNo) > 0); }
+function ppInfoHTML() {
+  if (!E || !E.custNo) return '';
+  var o = S.pp && S.pp[E.custNo]; if (!o) return '';
+  if (E.kind === '預付款') { var z = o.list.filter(function (x) { return x.no === E.no; })[0]; return z ? '<div style="margin-bottom:10px;padding:10px 14px;border-radius:12px;background:#fff4d6">預付款　金額（稅外） <b>' + money(z.subtotal) + '</b>　已抵扣 <b>' + money(z.used) + '</b>　<b>餘額 ' + money(z.balance) + '</b>' + (z.received ? '' : '　（尚未收齊）') + '</div>' : ''; }
+  return o.balance > 0 ? '<div style="margin-bottom:10px;padding:10px 14px;border-radius:12px;background:#fff4d6">這位客戶有預付款餘額（稅外） <b>' + money(o.balance) + '</b>，開發票前可以用「預付抵扣」扣除。</div>' : '';
+}
+function openPrepaidModal() {
+  var o = S.pp[E.custNo], rate = Number(E.rate); if (!(rate >= 0)) rate = Number((S.settings && S.settings.rate) || 0.05);
+  var list = (o ? o.list : []).filter(function (x) { return x.received && x.balance > 0; }); if (!list.length) return toast('這位客戶沒有可用的預付款');
+  var due = E.pay.diff, maxNet = Math.min(list[0].balance, Math.floor(due / (1 + rate) * 100) / 100);
+  window.__ppid = newId('P'); window.__pprate = rate; window.__ppdue = E.pay.receivable;
+  mopen('<h3>預付抵扣 ' + esc(E.no) + '</h3><div style="color:var(--mute);font-size:13.5px;margin-bottom:12px">以稅外金額抵扣。抵扣後，這張單的應收（也就是要開的發票）只剩扣除後的金額；營業額不變。</div>' +
+    '<div class="fld"><label class="f">用哪一筆預付款</label><select class="in" id="pp_no">' + list.map(function (x) { return '<option value="' + esc(x.no) + '" data-b="' + x.balance + '">' + esc(x.no + ' ' + x.project + '　餘額（稅外）' + money(x.balance)) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="grid2"><div class="fld"><label class="f">抵扣金額（稅外）</label><input class="in" id="pp_amt" type="number" step="any" value="' + maxNet + '"></div><div class="fld"><label class="f">日期</label><input class="in" id="pp_date" type="date" value="' + today() + '"></div></div>' +
+    '<div id="pp_hint" style="margin:6px 0 10px;color:var(--mute)"></div><div class="fld"><label class="f">備註（選填）</label><input class="in" id="pp_note"></div>' +
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px"><button class="btn" data-act="mclose">取消</button><button class="btn pri" data-act="ppsave">確認抵扣</button></div>');
+  var upd = function () { var a = Number($('#pp_amt').value) || 0, g = Math.round(a * (1 + window.__pprate) * 100) / 100; $('#pp_hint').innerHTML = '含稅抵扣 ' + money(g) + '　→　這張單應收剩 <b style="color:var(--ink)">' + money(Math.round((window.__ppdue - g) * 100) / 100) + '</b>（發票只開這個金額）'; };
+  $('#pp_amt').addEventListener('input', upd); upd();
+}
+function prepaidSave() {
+  var amt = Number($('#pp_amt').value); if (!(amt > 0)) return toast('請填抵扣金額');
+  var btn = $('[data-act=ppsave]'); btn.disabled = true;
+  api('addPayment', { payment: { id: window.__ppid, nature: '預付抵扣', no: E.no, prepaidNo: $('#pp_no').value, amount: amt, date: $('#pp_date').value, note: $('#pp_note').value } }).then(function (r) {
+    if (!r || !r.ok) { btn.disabled = false; return toast(esc((r && r.msg) || '抵扣失敗'), 5000); }
+    $('#md').remove(); if (r.prepaid) S.pp = r.prepaid; afterPay(r); toast('已抵扣，這張單應收剩 ' + money(r.row['應收金額']));
+  });
+}
 function openPayModal(nature) {
   var gen = nature === '代收代付', due = (!gen && E && E.pay) ? Math.max(E.pay.diff, 0) : '';
   window.__pid = newId('P');
@@ -1032,14 +1067,31 @@ function fzMake(no, M) {
 
 /* ---- 完工彙總（老闆） ---- */
 function renderDone() {
-  S.dm = S.dm == null ? ymNow() : S.dm;
-  $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">完工彙總</h2><input class="in" id="dm" type="month" value="' + esc(S.dm) + '" style="max-width:170px"><div style="flex:1"></div></div><div id="done"><div class="card empty">載入中…</div></div>';
-  api('doneSummary', { ym: S.dm }).then(function (r) {
+  S.dq = S.dq || ''; S.dp = S.dp || '全部';
+  $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">完工彙總</h2><input class="in" id="dq" placeholder="搜尋單號、客戶、發票號碼" value="' + esc(S.dq) + '"><div class="chips">' + ['全部', '未收', '已收'].map(function (c) { return '<button class="chip' + (S.dp === c ? ' on' : '') + '" data-act="dpf" data-v="' + c + '">' + c + '</button>'; }).join('') + '</div><div style="flex:1"></div></div><div id="done"><div class="card empty">載入中…</div></div>';
+  var dq = $('#dq'); dq.addEventListener('input', function () { S.dq = dq.value; var p = dq.selectionStart; debounce(function () { if (S.view !== 'done') return; drawDone(); }, 200); });
+  api('doneSummary', { ym: '' }).then(function (r) {
     var el = $('#done'); if (!el) return; if (!r.ok) return el.innerHTML = '<div class="card empty">' + esc(r.msg) + '</div>';
-    var s = { sales: 0, recv: 0, paid: 0, profit: 0 }; r.rows.forEach(function (x) { s.sales += x.sales; s.recv += x.receivable; s.paid += x.paid; s.profit += x.profit; });
-    el.innerHTML = r.rows.length ? '<div style="color:var(--mute);margin:0 4px 8px">共 ' + r.rows.length + ' 張　銷售額 <b style="color:var(--ink)">' + money(s.sales) + '</b>　應收 ' + money(s.recv) + '　已收 ' + money(s.paid) + '　毛利 ' + money(Math.round(s.profit * 100) / 100) + '</div><div class="sc"><table class="ls nolink"><tr><th>報價單號</th><th>公司</th><th>完工日</th><th>發票號碼</th><th class="num">銷售額</th><th class="num">應收</th><th class="num">已收</th><th>最後收款</th><th class="num">成本</th><th class="num">毛利</th><th>設計師</th><th>進度</th></tr>' + r.rows.map(function (x) { return '<tr class="row"><td><b>' + esc(x.no) + '</b></td><td>' + esc(x.company) + '</td><td>' + esc(String(x.doneDate).replace(/-/g, '/')) + '</td><td>' + esc(x.invNo) + '</td><td class="num">' + money(x.sales) + '</td><td class="num">' + money(x.receivable) + '</td><td class="num">' + money(x.paid) + '</td><td>' + esc(String(x.lastPaid).replace(/-/g, '/')) + '</td><td class="num">' + money(x.cost) + '</td><td class="num">' + money(x.profit) + '</td><td><input class="mini" data-dz="' + esc(x.no) + '" value="' + esc(x.designer) + '" maxlength="40" style="width:110px"></td><td>' + pill(x.progress, progCls(x.progress)) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="card empty">這個月份還沒有標示完工的報價單。</div>';
+    S.dr = r.rows; drawDone();
   });
 }
+function drawDone() {
+  var el = $('#done'); if (!el || !S.dr) return;
+  var q = (S.dq || '').toLowerCase(), f = S.dp || '全部';
+  var rows = S.dr.filter(function (x) { var done = /^已收/.test(x.progress) || x.progress === '無應收'; return (f === '全部' || (f === '已收' ? done : !done)) && (!q || JSON.stringify(x).toLowerCase().indexOf(q) >= 0); });
+  rows.sort(function (a, b) { return String(b.doneDate).localeCompare(String(a.doneDate)) || b.no.localeCompare(a.no); });
+  if (!rows.length) return el.innerHTML = '<div class="card empty">沒有符合的案件。</div>';
+  var groups = [], gi = {}; rows.forEach(function (x) { var k = x.month || '未標月份'; if (gi[k] === undefined) { gi[k] = groups.length; groups.push({ m: k, rows: [] }); } groups[gi[k]].rows.push(x); });
+  var head = '<tr><th>報價單號</th><th>公司</th><th>完工日</th><th>發票號碼</th><th class="num">銷售額</th><th class="num">應收</th><th class="num">已收</th><th>最後收款</th><th class="num">成本</th><th class="num">毛利</th><th>設計師</th><th>進度</th></tr>';
+  var all = { net: 0, cost: 0, profit: 0 }; rows.forEach(function (x) { all.net += x.net; all.cost += x.cost; all.profit += x.profit; });
+  el.innerHTML = '<div style="color:var(--mute);margin:0 4px 12px">共 ' + rows.length + ' 張　營業額 <b style="color:var(--ink)">' + money(r2(all.net)) + '</b>　成本 ' + money(r2(all.cost)) + '　毛利 <b style="color:var(--ink)">' + money(r2(all.profit)) + '</b></div>' +
+    groups.map(function (g, gx) {
+      var s = { net: 0, cost: 0, profit: 0 }; g.rows.forEach(function (x) { s.net += x.net; s.cost += x.cost; s.profit += x.profit; });
+      return '<details open style="margin-bottom:14px"><summary style="cursor:pointer;padding:10px 6px;font-weight:600;display:flex;gap:18px;flex-wrap:wrap;align-items:baseline"><span style="font-size:16px">' + esc(g.m.replace('-', ' 年 ')) + ' 月</span><span style="color:var(--mute);font-weight:400">' + g.rows.length + ' 張</span><span style="font-weight:400">營業額 <b>' + money(r2(s.net)) + '</b></span><span style="font-weight:400;color:var(--mute)">成本 ' + money(r2(s.cost)) + '</span><span style="font-weight:400">毛利（淨利） <b>' + money(r2(s.profit)) + '</b></span></summary>' +
+        '<div class="sc"><table class="ls nolink">' + head + g.rows.map(function (x) { return '<tr class="row"><td><b>' + esc(x.no) + '</b></td><td>' + esc(x.company) + '</td><td>' + esc(String(x.doneDate).replace(/-/g, '/')) + '</td><td>' + esc(x.invNo) + '</td><td class="num">' + money(x.sales) + '</td><td class="num">' + money(x.receivable) + '</td><td class="num">' + money(x.paid) + '</td><td>' + esc(String(x.lastPaid).replace(/-/g, '/')) + '</td><td class="num">' + money(x.cost) + '</td><td class="num">' + money(x.profit) + '</td><td><input class="mini" data-dz="' + esc(x.no) + '" value="' + esc(x.designer) + '" maxlength="40" style="width:110px"></td><td>' + pill(x.progress, progCls(x.progress)) + '</td></tr>'; }).join('') + '</table></div></details>';
+    }).join('');
+}
+function r2(n) { return Math.round(n * 100) / 100; }
 
 /* ---- 梅科請款包（老闆） ---- */
 function renderPack() {
@@ -1174,7 +1226,7 @@ document.addEventListener('click', function (e) {
   else if (a === 'mcat') { S.mcat = t.dataset.v === '全部' ? '' : t.dataset.v; renderMaster(t.dataset.t, S.zone); }
   else if (a === 'savenote') saveNote();
   else if (a === 'filter') { S.filter = t.dataset.v; renderQuotes(); }
-  else if (a === 'newcase') openNewCase(); else if (a === 'nczmake') ncMake(); else if (a === 'invimp') openInvImport(); else if (a === 'invpick') invPickFile(); else if (a === 'invgo') invGo(); else if (a === 'invundo') invUndo(); else if (a === 'newq') newQuote(); else if (a === 'open') openQuote(t.dataset.no);
+  else if (a === 'dpf') { S.dp = t.dataset.v; renderDone(); } else if (a === 'ppuse') openPrepaidModal(); else if (a === 'ppsave') prepaidSave(); else if (a === 'newcase') openNewCase(); else if (a === 'nczmake') ncMake(); else if (a === 'invimp') openInvImport(); else if (a === 'invpick') invPickFile(); else if (a === 'invgo') invGo(); else if (a === 'invundo') invUndo(); else if (a === 'newq') newQuote(); else if (a === 'open') openQuote(t.dataset.no);
   else if (a === 'copyq') { e.stopPropagation(); copyQuote(t.dataset.no); }
   else if (a === 'back') { E = null; render(); }
   else if (a === 'addline') { E.lines.push(blankLine()); renderLines(); refresh(); }
