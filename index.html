@@ -385,6 +385,12 @@ function demoApi(act, d) {
     o.status = '已作廢'; o.voidReason = d.reason; o.signed = false; q = JSON.parse(JSON.stringify(o)); q.no = base + '-R' + (n + 1); q.status = '草稿'; q.voidReason = ''; q.replaces = d.no; q.pdf = '';
     db.quotes[q.no] = q; return { ok: true, voided: d.no, quote: JSON.parse(JSON.stringify(q)) };
   }
+  if (act === 'scanCheck') return { ok: true, init: !!db.scanInit, pending: db.scanInit ? 0 : 2, unmatched: 1, skippedX: 1, made: [] };
+  if (act === 'scanPlan') return { ok: true, init: !!db.scanInit, skippedX: 1, unmatched: db.scanAl ? [] : [{ parentId: 'P9', parent: '測試未對應客戶', count: 1, names: ['20261110 測試案'] }], items: [{ id: 'F1', name: '20261105 活動視覺延伸設計', url: '#', date: '2026-11-05', project: '活動視覺延伸設計', parentId: 'P1', parent: '範例活動', cust: 'O-00001', custName: '範例活動股份有限公司' }, { id: 'F2', name: '20261112 名牌製作', url: '#', date: '2026-11-12', project: '名牌製作', parentId: 'P1', parent: '範例活動', cust: 'O-00001', custName: '範例活動股份有限公司' }].filter(function (x) { return !(db.scanDone || {})[x.id]; }) };
+  if (act === 'scanAlias') { db.scanAl = 1; return { ok: true }; }
+  if (act === 'scanApply') { db.scanInit = 1; db.scanDone = db.scanDone || {}; var mk = [], bd = 0, sk = 0; (d.picks || []).forEach(function (p) { db.scanDone[p.id] = 1; if (p.op === 'skip') sk++; else if (p.op === 'bind') bd++; else { var nq = JSON.parse(JSON.stringify(db.quotes['G202610-001'])); nq.no = 'G202611-' + String(90 + Object.keys(db.quotes).length); nq.status = '草稿'; nq.project = p.name.replace(/^\d{8}\s*/, ''); nq.lines = []; nq.total = 0; db.quotes[nq.no] = nq; mk.push({ no: nq.no, name: p.name }); } }); return { ok: true, made: mk, bound: bd, skipped: sk, errs: [] }; }
+  if (act === 'scanUndo') return { ok: true, gone: 0, unbound: 0, kept: [] };
+  if (act === 'discardDraft') { var dq = db.quotes[d.no]; if (!dq || dq.status !== '草稿') return { ok: false, msg: '只有「待補內容」的草稿可以捨棄' }; dq.status = '已作廢'; return { ok: true }; }
   if (act === 'pdf') return { ok: false, msg: '示範模式不會存到雲端硬碟，請改用「列印／另存 PDF」' };
   if (act === 'saveRow') { var t = tbl[d.table], key = { customers: '客戶編號', items: '商品編號', vendors: '廠商編號', terms: '條款ID' }[d.table], arr = db[t]; if (t === 'terms' && !d.row[key]) d.row[key] = 'T' + Date.now(); var i = arr.findIndex(function (r) { return r[key] === d.row[key]; }); if (i >= 0) arr[i] = d.row; else arr.push(d.row); return { ok: true, rows: arr }; }
   if (act === 'delRow') { var t2 = tbl[d.table], key2 = { customers: '客戶編號', items: '商品編號', vendors: '廠商編號', terms: '條款ID' }[d.table], arr2 = db[t2]; var j = arr2.findIndex(function (r) { return r[key2] === d.key; }); if (j >= 0) arr2.splice(j, 1); return { ok: true, rows: arr2 }; }
@@ -422,7 +428,7 @@ function boot() {
   api('boot').then(function (r) {
     if (!r || !r.ok) { if (r && r.code !== 'AUTH') toast(esc((r && r.msg) || '載入失敗')); return render(); }
     S.user = r.user; S.assets = r.assets || {}; S.settings = r.settings; S.customers = r.customers; S.items = r.items; S.vendors = r.vendors || []; S.branches = r.branches || []; S.terms = r.terms; S.quotes = r.quotes; S.kinds = r.kinds;
-    render();
+    render(); scanBg(false);
   });
 }
 function doLogin() {
@@ -665,7 +671,7 @@ function renderEditor() {
     (S.user.role === '老闆' && E.no && E.status !== '已作廢' ? '<button class="btn" data-act="cfolder" data-no="' + esc(E.no) + '">📁 案件資料夾</button><button class="btn" data-act="costopen" data-no="' + esc(E.no) + '">💰 成本</button>' : '') +
     '<button class="btn" data-act="print">列印／另存 PDF</button>' +
     (E.no && S.user.role === '老闆' ? '<button class="btn" data-act="copycur">複製為新報價</button>' : '') + (E.pdf ? '<a class="btn" target="_blank" href="' + esc(E.pdf) + '" title="最新一份">開啟最新 PDF</a>' : '') +
-    (S.user.role === '老闆' && E.status !== '已作廢' ? (canEdit() ? '<button class="btn" data-act="save">儲存</button><button class="btn pri" data-act="savepdf" title="先存檔，再另存一份新的 PDF 到雲端硬碟（依月份資料夾，舊的不會被蓋掉）">產生 PDF</button>' : '<button class="btn dark" data-act="pdf" title="另存一份新的 PDF 到雲端硬碟（舊的不會被蓋掉）">產生 PDF</button>') + (E.status === '已鎖定' && !E.frozen ? '<button class="btn" data-act="void">作廢並重開</button>' : '') : '') + '</div></div>' + stepperHTML() + frozenNoteHTML() + giftBannerHTML() +
+    (S.user.role === '老闆' && E.status !== '已作廢' ? (canEdit() ? '<button class="btn" data-act="save">儲存</button><button class="btn pri" data-act="savepdf" title="先存檔，再另存一份新的 PDF 到雲端硬碟（依月份資料夾，舊的不會被蓋掉）">產生 PDF</button>' : '<button class="btn dark" data-act="pdf" title="另存一份新的 PDF 到雲端硬碟（舊的不會被蓋掉）">產生 PDF</button>') + (E.status === '已鎖定' && !E.frozen ? '<button class="btn" data-act="void">作廢並重開</button>' : '') + (E.status === '草稿' && E.no && !(E.total > 0) ? '<button class="btn" data-act="discard" title="不需要這張報價單時使用；對應的案件資料夾不會再被系統偵測">捨棄草稿</button>' : '') : '') + '</div></div>' + stepperHTML() + frozenNoteHTML() + giftBannerHTML() +
     ((E.replaces || E.voidReason || E.imported || E.invNo || (canEdit() && E._orig != null && E._orig !== '')) ? '<div class="card" id="info" style="padding:12px 18px;margin-bottom:14px;font-size:14px;color:var(--mute)">' + (E.imported ? 'Ragic 匯入舊單（原編號 ' + esc(E.ragicNo) + '），金額照原值保留　' : '') + (E.replaces ? '這張是重開單，取代 <b>' + esc(E.replaces) + '</b>　' : '') + (E.voidReason ? '已作廢，原因：' + esc(E.voidReason) + '　' : '') + (E.invNo ? '發票 ' + esc(E.invNo) + (E.invDate ? '（' + esc(E.invDate.replace(/-/g, '/')) + '）' : '') + '　' : '') + '<span id="recalc"></span></div>' : '') +
     '<div class="ed"><div><fieldset ' + (locked ? 'disabled' : '') + ' style="border:0;margin:0;padding:0;min-width:0">' +
     '<div class="card sec"><h3>基本資料' + (locked ? '' : '<button class="btn sm" data-act="copyprev" type="button">複製這位客戶的上一張</button>') + '</h3><div class="grid2"><div><label class="f">客戶</label><select class="in" id="f_cust">' + custOpts + '</select></div><div><label class="f">案型</label><select class="in" id="f_kind">' + kindOpts + '</select></div>' +
@@ -1118,7 +1124,7 @@ function ncMake() {
     return api('makeCaseFolder', { no: no, name: today().replace(/-/g, '') + ' ' + nm, zones: zones }).then(function (f) {
       btn.disabled = false; if (f && f.row) setRow(f.row);
       $('#md').remove(); openQuote(no);
-      toast(f && f.ok ? '已建立資料夾並開好草稿 ' + esc(no) + '，記得補齊內容；沒有下文的話把這張作廢即可' : '草稿 ' + esc(no) + ' 已開好，但資料夾沒建成：' + esc((f && f.msg) || ''), 6500);
+      toast(f && f.ok ? '已建立資料夾並開好草稿 ' + esc(no) + '，記得補齊內容；沒有下文的話在報價單裡按「捨棄草稿」即可' : '草稿 ' + esc(no) + ' 已開好，但資料夾沒建成：' + esc((f && f.msg) || ''), 6500);
     });
   });
 }
@@ -1588,6 +1594,7 @@ document.addEventListener('click', function (e) {
   else if (a === 'savenote') saveNote();
   else if (a === 'filter') { S.filter = t.dataset.v; renderQuotes(); }
   else if (a === 'dpf') { S.dp = t.dataset.v; renderDone(); } else if (a === 'ppuse') openPrepaidModal(); else if (a === 'ppsave') prepaidSave(); else if (a === 'newcase') openNewCase(); else if (a === 'nczmake') ncMake(); else if (a === 'invimp') openInvImport(); else if (a === 'invpick') invPickFile(); else if (a === 'invgo') invGo(); else if (a === 'invundo') invUndo(); else if (a === 'newq') newQuote(); else if (a === 'open') openQuote(t.dataset.no);
+  else if (a === 'scanopen') scanOpen(); else if (a === 'scannow') scanNow(); else if (a === 'scanalias') scanAlias(t.dataset.p); else if (a === 'scanall') scanAll(t.dataset.v); else if (a === 'scango') scanGo(); else if (a === 'scanundo') scanUndo(); else if (a === 'discard') discardDraft();
   else if (a === 'copyq') { e.stopPropagation(); copyQuote(t.dataset.no); }
   else if (a === 'back') { if (history.state && history.state.cnE) history.back(); else { E = null; render(); } }
   else if (a === 'qmore') { S.qlim = (S.qlim || qPage()) + 60; renderQuotes(); }
@@ -1666,11 +1673,124 @@ function renderTodo() {
   var diff = function (r) { if (r['發票'] !== '開發票' || noInv(r)) return false; var a = r['發票金額']; if (a === '' || a == null) return false; return Math.abs(Number(a) - recvOf(r)) >= 0.5; };
   var unpaid = L.filter(function (r) { return ['已收', '已收（尾差）', '無應收'].indexOf(r['收款進度'] || '未收') < 0 && recvOf(r) > 0; }).sort(function (x, y) { return String(x['報價日期']).localeCompare(String(y['報價日期'])); });
   var sumU = unpaid.reduce(function (t, r) { return t + recvOf(r); }, 0);
-  var cards = (b ? tdCard('新分院大禮包待確認', '系統依梅科分院資訊表自動開好的草稿；確認機器與內容後按「儲存」就成為報價單', G, function (r) { return String(r['內部備註'] || '').indexOf('【機器未確認】') >= 0 ? pill('機器未確認', 'p-bad') : money(r['總金額']); }) + tdCard('待補內容的報價單', '新案件或還沒存成報價的草稿；填好品項與金額後按「儲存」', D, function (r) { return money(r['總金額']); }) + tdCard('發票待定案', '請決定開發票或免開發票', L.filter(function (r) { return r['發票'] === '待確認'; }).sort(byNoDesc)) : '') +
+  var cards = (b ? scanCardHTML() + tdCard('新分院大禮包待確認', '系統依梅科分院資訊表自動開好的草稿；確認機器與內容後按「儲存」就成為報價單', G, function (r) { return String(r['內部備註'] || '').indexOf('【機器未確認】') >= 0 ? pill('機器未確認', 'p-bad') : money(r['總金額']); }) + tdCard('待補內容的報價單', '新案件或還沒存成報價的草稿；填好品項與金額後按「儲存」', D, function (r) { return money(r['總金額']); }) + tdCard('發票待定案', '請決定開發票或免開發票', L.filter(function (r) { return r['發票'] === '待確認'; }).sort(byNoDesc)) : '') +
     tdCard('還沒開發票', '報價中、需開發票，但還沒有發票號碼；完工後請先「轉入完工彙總」再填發票', L.filter(function (r) { return r['發票'] === '開發票' && noInv(r); }).sort(byNoDesc)) +
     tdCard('發票金額核對有差', '發票金額與應收不一致，請確認', L.filter(diff).sort(byNoDesc), function (r) { var d = Math.round((Number(r['發票金額']) - recvOf(r)) * 100) / 100; return pill('差 ' + (d > 0 ? '+' : '') + d.toLocaleString('en-US'), 'p-bad'); }) +
     tdCard('待收款', '合計 ' + money(sumU) + '；由舊到新', unpaid, function (r) { return money(recvOf(r)) + ' ' + pill(r['收款進度'] || '未收', progCls(r['收款進度'] || '未收')); });
-  $('#main').innerHTML = '<h2 style="margin:0 0 4px;font-size:20px">待辦</h2><div style="color:var(--mute);margin-bottom:14px">點一筆就能直接處理</div>' + (cards ? '<div class="tdgrid">' + cards + '</div>' : '<div class="card empty">目前沒有待辦，全部處理完了 ✓</div>');
+  $('#main').innerHTML = '<h2 style="margin:0 0 4px;font-size:20px">待辦</h2><div style="color:var(--mute);margin-bottom:14px">點一筆就能直接處理' + (b ? ' <button class="btn" data-act="scannow" style="margin-left:8px">立即掃描案件資料夾</button>' : '') + '</div>' + (cards ? '<div class="tdgrid">' + cards + '</div>' : '<div class="card empty">目前沒有待辦，全部處理完了 ✓</div>');
+}
+
+
+/* ---- 案件資料夾偵測：背景掃描、待辦卡片、對帳視窗 ---- */
+function scanBg(force) {
+  if (!isBoss() || S.scanBusy) return Promise.resolve(null);
+  S.scanBusy = 1;
+  return api('scanCheck', { force: !!force }).then(function (r) {
+    S.scanBusy = 0; if (!r || !r.ok) return r;
+    S.scan = r;
+    var again = function () { if (S.view === 'todo' && !E) renderTodo(); };
+    if (r.made && r.made.length) { api('boot').then(function (b) { if (b && b.ok) S.quotes = b.quotes; again(); }); toast('偵測到 ' + r.made.length + ' 個新案件資料夾，已自動開好草稿（待辦可看）', 5200); } else again();
+    return r;
+  });
+}
+function scanNow() {
+  toast('掃描中，約需幾秒…', 3000);
+  scanBg(true).then(function (r) { if (!r) return; if (!r.ok) return toast(esc(r.msg || '掃描失敗'), 4800); if (!(r.made && r.made.length)) toast(r.pending || r.unmatched ? '掃描完成，有資料夾待處理（待辦第一張卡）' : '掃描完成，沒有新的案件資料夾', 3600); });
+}
+function scanCardHTML() {
+  var s = S.scan; if (!s || !s.ok) return '';
+  var parts = [];
+  if (s.pending) parts.push(s.init ? s.pending + ' 個案件資料夾還沒開好草稿' : '現有 ' + s.pending + ' 個案件資料夾還沒有報價單，先對帳一次');
+  if (s.unmatched) parts.push(s.unmatched + ' 個客戶資料夾對不到客戶');
+  if (!parts.length) return '';
+  return '<div class="card"><div class="tdh"><h3>案件資料夾待處理</h3>' + pill(((s.pending || 0) + (s.unmatched || 0)) + ' 項', 'p-warn') + '</div><div class="sum" style="color:var(--mute);font-size:13px;margin-bottom:10px">' + esc(parts.join('；')) + '</div><button class="btn pri" data-act="scanopen">' + (s.init ? '查看並處理' : '開始對帳') + '</button></div>';
+}
+function scanOpen() {
+  var d = document.createElement('div');
+  d.innerHTML = '<div class="modal" id="md"><div class="mbox" style="max-width:880px"><h3>案件資料夾對帳</h3><div id="scbody" style="color:var(--mute)">讀取資料夾中，約需幾秒…</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn" data-act="mclose">關閉</button></div></div></div>';
+  document.body.appendChild(d.firstChild); scanLoad();
+}
+function scanLoad() {
+  api('scanPlan').then(function (p) {
+    if (!$('#scbody')) return;
+    if (!p || !p.ok) { $('#scbody').innerHTML = esc((p && p.msg) || '讀取失敗'); return; }
+    S.scp = p; S.scan = Object.assign({}, S.scan || {}, { ok: true, init: p.init, pending: p.items.length, unmatched: p.unmatched.length }); scanDraw();
+  });
+}
+function scanNz(x) { return String(x == null ? '' : x).replace(/[\s　()（）\-－_]/g, '').toLowerCase(); }
+function scanDraw() {
+  var p = S.scp, body = $('#scbody'); if (!body) return;
+  var h = '<div style="color:var(--mute);font-size:13.5px;margin-bottom:12px">' + (p.init ? '' : '第一次對帳：') + '這裡是還沒對應報價單的案件資料夾。每一筆選一個動作，按「套用」才會執行，執行後可以整批復原。名稱前後是 X 的資料夾（例如 X不用歸檔建立報價單區X）、梅科資料夾不會出現在這裡。</div>';
+  if (p.unmatched.length) {
+    var co = S.customers.filter(function (c) { return c['類型'] !== '梅科'; }).sort(function (a, b) { return String(a['公司']).localeCompare(String(b['公司'])); }).map(function (c) { return '<option value="' + esc(c['客戶編號']) + '">' + esc(c['公司']) + '</option>'; }).join('');
+    h += '<div class="card" style="margin-bottom:14px"><b>這些客戶資料夾對不到客戶（指定一次，之後同名會自動帶入）</b>' + p.unmatched.map(function (u) {
+      return '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0"><div style="flex:1;min-width:180px"><b>' + esc(u.parent) + '</b><div style="color:var(--mute);font-size:12.5px">' + u.count + ' 個案件資料夾，例：' + esc((u.names || []).join('、')) + '</div></div><select class="in" id="sa_' + esc(u.parentId) + '" style="max-width:240px"><option value="">— 選客戶 —</option>' + co + '<option value="skip">這個資料夾不用開單</option></select><button class="btn" data-act="scanalias" data-p="' + esc(u.parentId) + '">確定</button></div>';
+    }).join('') + '</div>';
+  }
+  if (p.items.length) {
+    h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><b>' + p.items.length + ' 個案件資料夾</b><span style="flex:1"></span><button class="btn" data-act="scanall" data-v="draft">全部設為開草稿</button><button class="btn" data-act="scanall" data-v="skip">全部設為略過</button></div>';
+    var cur = '';
+    p.items.forEach(function (it) {
+      if (it.custName !== cur) { cur = it.custName; h += '<div style="margin:12px 0 4px;font-weight:600">' + esc(cur) + '</div>'; }
+      var qs = S.quotes.filter(function (r) { return String(r['客戶編號']) === String(it.cust) && r['狀態'] !== '已作廢'; }).sort(function (a, b) { return String(b['報價單號']).localeCompare(String(a['報價單號'])); }).slice(0, 40);
+      var np = scanNz(it.project), pick = '';
+      if (np.length >= 2) qs.some(function (r) { var q2 = scanNz(r['專案名稱']); if (q2.length >= 2 && (q2 === np || q2.indexOf(np) >= 0 || np.indexOf(q2) >= 0)) { pick = 'bind:' + r['報價單號']; return true; } return false; });
+      h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0"><div style="flex:1;min-width:200px"><a href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.name) + '</a></div><select class="in sc-op" data-id="' + esc(it.id) + '" data-cust="' + esc(it.cust) + '" data-name="' + esc(it.name) + '" style="max-width:300px"><option value="draft"' + (pick ? '' : ' selected') + '>開草稿</option><option value="skip">略過（不用開單）</option>' +
+        qs.map(function (r) { var v = 'bind:' + r['報價單號']; return '<option value="' + esc(v) + '"' + (v === pick ? ' selected' : '') + '>已有報價單：' + esc(r['報價單號']) + ' ' + esc(String(r['專案名稱'] || '').slice(0, 14)) + '</option>'; }).join('') + '</select></div>';
+    });
+    h += '<div id="scmsg" style="margin-top:10px"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn pri" data-act="scango">套用</button></div>';
+  } else if (!p.unmatched.length) h += '<div class="empty">目前沒有待處理的案件資料夾 ✓</div>';
+  body.innerHTML = h;
+}
+function scanAll(v) { [].forEach.call(document.querySelectorAll('#scbody .sc-op'), function (s) { s.value = v; }); }
+function scanAlias(pid) {
+  var sel = document.getElementById('sa_' + pid), v = sel && sel.value; if (!v) return toast('請先選一位客戶，或選「這個資料夾不用開單」');
+  api('scanAlias', { parentId: pid, cust: v }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '儲存失敗'), 4200); scanLoad(); });
+}
+function scanGo() {
+  var ops = [].map.call(document.querySelectorAll('#scbody .sc-op'), function (s) { var o = { id: s.dataset.id, cust: s.dataset.cust, name: s.dataset.name, op: s.value, no: '' }; if (s.value.indexOf('bind:') === 0) { o.op = 'bind'; o.no = s.value.slice(5); } return o; });
+  if (!ops.length) return;
+  var nd = ops.filter(function (o) { return o.op === 'draft'; }).length;
+  if (nd > 20 && !confirm('這次會開 ' + nd + ' 張草稿，確定嗎？（套用後可以整批復原）')) return;
+  var btn = $('[data-act=scango]'); btn.disabled = true; S.scb = 'SC' + Date.now();
+  var made = 0, bound = 0, skipped = 0, errs = [], i = 0, msg = $('#scmsg');
+  (function next() {
+    if (i >= ops.length) {
+      api('boot').then(function (b) { if (b && b.ok) S.quotes = b.quotes; });
+      var h = '<div style="color:var(--ok,#2a7d46)"><b>完成：</b>開草稿 ' + made + ' 張、綁定既有報價單 ' + bound + ' 筆、略過 ' + skipped + ' 筆。' + (made ? '草稿在「待辦 → 待補內容的報價單」。' : '') + '</div>' + (errs.length ? '<div style="color:var(--warn);margin-top:6px">沒成功 ' + errs.length + ' 筆：' + esc(errs.slice(0, 5).join('；')) + '</div>' : '') +
+        '<div style="margin-top:8px"><button class="btn" data-act="scanundo">復原這一批</button></div>';
+      msg.innerHTML = h; btn.disabled = false; S.scp.items = []; scanLoadKeep(h); return;
+    }
+    var chunk = ops.slice(i, i + 20); i += 20; msg.innerHTML = '處理中… ' + Math.min(i, ops.length) + ' / ' + ops.length;
+    api('scanApply', { batchId: S.scb, picks: chunk }).then(function (r) {
+      if (!r || !r.ok) { errs.push((r && r.msg) || '連線失敗'); return next(); }
+      made += (r.made || []).length; bound += r.bound || 0; skipped += r.skipped || 0; errs = errs.concat(r.errs || []); next();
+    });
+  })();
+}
+function scanLoadKeep(resultHTML) {
+  api('scanPlan').then(function (p) {
+    if (!$('#scbody') || !p || !p.ok) return; S.scp = p; S.scan = Object.assign({}, S.scan || {}, { ok: true, init: p.init, pending: p.items.length, unmatched: p.unmatched.length });
+    scanDraw(); var b = $('#scbody'); b.insertAdjacentHTML('afterbegin', '<div class="card" style="margin-bottom:12px">' + resultHTML + '</div>');
+    if (S.view === 'todo' && !E) renderTodo();
+  });
+}
+function scanUndo() {
+  if (!confirm('復原這一批：剛開的草稿會捨棄（還沒被修改過的）、綁定會解除、略過會恢復。確定嗎？')) return;
+  api('scanUndo', { batchId: S.scb }).then(function (r) {
+    if (!r || !r.ok) return toast(esc((r && r.msg) || '復原失敗'), 4800);
+    api('boot').then(function (b) { if (b && b.ok) S.quotes = b.quotes; scanLoad(); if (S.view === 'todo' && !E) renderTodo(); });
+    toast('已復原：草稿 ' + r.gone + ' 張、解除綁定 ' + r.unbound + ' 筆' + ((r.kept || []).length ? '；已被修改過而保留：' + esc(r.kept.join('、')) : ''), 5200);
+  });
+}
+function discardDraft() {
+  if (!E || !E.no) return;
+  if (!confirm('捨棄這張草稿？\n捨棄後不會再出現在待辦，它對應的案件資料夾也不會再被系統偵測。')) return;
+  var no = E.no;
+  api('discardDraft', { no: no }).then(function (r) {
+    if (!r || !r.ok) return toast(esc((r && r.msg) || '捨棄失敗'), 4800);
+    api('boot').then(function (b) { if (b && b.ok) S.quotes = b.quotes; E = null; render(); toast(esc(no) + ' 已捨棄', 3200); });
+  });
 }
 
 /* ---- 手機：表格變卡片；超長下拉選單變可搜尋 ---- */
