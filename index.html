@@ -389,6 +389,7 @@ function demoApi(act, d) {
   if (act === 'scanPlan') return { ok: true, init: !!db.scanInit, skippedX: 1, unmatched: db.scanAl ? [] : [{ parentId: 'P9', parent: '測試未對應客戶', count: 1, names: ['20261110 測試案'] }], items: [{ id: 'F1', name: '20261105 活動視覺延伸設計', url: '#', date: '2026-11-05', project: '活動視覺延伸設計', parentId: 'P1', parent: '範例活動', cust: 'O-00001', custName: '範例活動股份有限公司' }, { id: 'F2', name: '20261112 名牌製作', url: '#', date: '2026-11-12', project: '名牌製作', parentId: 'P1', parent: '範例活動', cust: 'O-00001', custName: '範例活動股份有限公司' }].filter(function (x) { return !(db.scanDone || {})[x.id]; }) };
   if (act === 'scanAlias') { db.scanAl = 1; return { ok: true }; }
   if (act === 'scanApply') { db.scanInit = 1; db.scanDone = db.scanDone || {}; var mk = [], bd = 0, sk = 0; (d.picks || []).forEach(function (p) { db.scanDone[p.id] = 1; if (p.op === 'skip') sk++; else if (p.op === 'bind') bd++; else { var nq = JSON.parse(JSON.stringify(db.quotes['G202610-001'])); nq.no = 'G202611-' + String(90 + Object.keys(db.quotes).length); nq.status = '草稿'; nq.project = p.name.replace(/^\d{8}\s*/, ''); nq.lines = []; nq.total = 0; db.quotes[nq.no] = nq; mk.push({ no: nq.no, name: p.name }); } }); return { ok: true, made: mk, bound: bd, skipped: sk, errs: [] }; }
+  if (act === 'scanMerge') { db.scanInit = 1; db.scanDone = db.scanDone || {}; (d.ids || []).forEach(function (i) { db.scanDone[i] = 1; }); var mq = JSON.parse(JSON.stringify(db.quotes['G202610-001'])); mq.no = 'G202611-' + String(90 + Object.keys(db.quotes).length); mq.status = '草稿'; mq.project = '活動視覺延伸設計 等 ' + d.ids.length + ' 案'; mq.lines = d.ids.map(function (i) { return { group: i, code: '', product: '', item: '', spec: '', qty: 1, unit: '筆', price: 0, amount: 0, note: '', vendor: '', cost: '' }; }); mq.total = 0; db.quotes[mq.no] = mq; return { ok: true, made: [{ no: mq.no, name: mq.project, count: d.ids.length }], errs: [] }; }
   if (act === 'scanUndo') return { ok: true, gone: 0, unbound: 0, kept: [] };
   if (act === 'discardDraft') { var dq = db.quotes[d.no]; if (!dq || dq.status !== '草稿') return { ok: false, msg: '只有「待補內容」的草稿可以捨棄' }; dq.status = '已作廢'; return { ok: true }; }
   if (act === 'pdf') return { ok: false, msg: '示範模式不會存到雲端硬碟，請改用「列印／另存 PDF」' };
@@ -1728,14 +1729,19 @@ function scanDraw() {
     }).join('') + '</div>';
   }
   if (p.items.length) {
-    h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><b>' + p.items.length + ' 個案件資料夾</b><span style="flex:1"></span><button class="btn" data-act="scanall" data-v="draft">全部設為開草稿</button><button class="btn" data-act="scanall" data-v="skip">全部設為略過</button></div>';
-    var cur = '';
+    h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><b>' + p.items.length + ' 個案件資料夾</b><span style="flex:1"></span><button class="btn" data-act="scanall" data-v="merge">全部同客戶合併</button><button class="btn" data-act="scanall" data-v="draft">全部單獨開草稿</button><button class="btn" data-act="scanall" data-v="skip">全部設為略過</button></div>';
+    var cur = '', cnt = {}, pk0 = {};
+    p.items.forEach(function (it) {
+      var qs0 = S.quotes.filter(function (r) { return String(r['客戶編號']) === String(it.cust) && r['狀態'] !== '已作廢'; }), np0 = scanNz(it.project), hit = false;
+      if (np0.length >= 2) qs0.some(function (r) { var q3 = scanNz(r['專案名稱']); if (q3.length >= 2 && (q3 === np0 || q3.indexOf(np0) >= 0 || np0.indexOf(q3) >= 0)) { hit = true; return true; } return false; });
+      pk0[it.id] = hit; if (!hit) cnt[it.cust] = (cnt[it.cust] || 0) + 1;
+    });
     p.items.forEach(function (it) {
       if (it.custName !== cur) { cur = it.custName; h += '<div style="margin:12px 0 4px;font-weight:600">' + esc(cur) + '</div>'; }
       var qs = S.quotes.filter(function (r) { return String(r['客戶編號']) === String(it.cust) && r['狀態'] !== '已作廢'; }).sort(function (a, b) { return String(b['報價單號']).localeCompare(String(a['報價單號'])); }).slice(0, 40);
       var np = scanNz(it.project), pick = '';
       if (np.length >= 2) qs.some(function (r) { var q2 = scanNz(r['專案名稱']); if (q2.length >= 2 && (q2 === np || q2.indexOf(np) >= 0 || np.indexOf(q2) >= 0)) { pick = 'bind:' + r['報價單號']; return true; } return false; });
-      h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0"><div style="flex:1;min-width:200px"><a href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.name) + '</a></div><select class="in sc-op" data-id="' + esc(it.id) + '" data-cust="' + esc(it.cust) + '" data-name="' + esc(it.name) + '" style="max-width:300px"><option value="draft"' + (pick ? '' : ' selected') + '>開草稿</option><option value="skip">略過（不用開單）</option>' +
+      h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0"><div style="flex:1;min-width:200px"><a href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.name) + '</a></div><select class="in sc-op" data-id="' + esc(it.id) + '" data-cust="' + esc(it.cust) + '" data-name="' + esc(it.name) + '" style="max-width:300px"><option value="merge"' + (!pick && cnt[it.cust] >= 2 ? ' selected' : '') + '>合併成一張（同客戶）</option><option value="draft"' + (!pick && !(cnt[it.cust] >= 2) ? ' selected' : '') + '>單獨開草稿</option><option value="skip">略過（不用開單）</option>' +
         qs.map(function (r) { var v = 'bind:' + r['報價單號']; return '<option value="' + esc(v) + '"' + (v === pick ? ' selected' : '') + '>已有報價單：' + esc(r['報價單號']) + ' ' + esc(String(r['專案名稱'] || '').slice(0, 14)) + '</option>'; }).join('') + '</select></div>';
     });
     h += '<div id="scmsg" style="margin-top:10px"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn pri" data-act="scango">套用</button></div>';
@@ -1748,16 +1754,26 @@ function scanAlias(pid) {
   api('scanAlias', { parentId: pid, cust: v }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '儲存失敗'), 4200); scanLoad(); });
 }
 function scanGo() {
-  var ops = [].map.call(document.querySelectorAll('#scbody .sc-op'), function (s) { var o = { id: s.dataset.id, cust: s.dataset.cust, name: s.dataset.name, op: s.value, no: '' }; if (s.value.indexOf('bind:') === 0) { o.op = 'bind'; o.no = s.value.slice(5); } return o; });
-  if (!ops.length) return;
-  var nd = ops.filter(function (o) { return o.op === 'draft'; }).length;
+  var all = [].map.call(document.querySelectorAll('#scbody .sc-op'), function (s) { var o = { id: s.dataset.id, cust: s.dataset.cust, name: s.dataset.name, op: s.value, no: '' }; if (s.value.indexOf('bind:') === 0) { o.op = 'bind'; o.no = s.value.slice(5); } return o; });
+  if (!all.length) return;
+  var mg = {}; all.forEach(function (o) { if (o.op === 'merge') (mg[o.cust] = mg[o.cust] || []).push(o.id); });
+  var ops = all.filter(function (o) { if (o.op !== 'merge') return true; if (mg[o.cust].length < 2) { o.op = 'draft'; return true; } return false; });
+  var groups = Object.keys(mg).filter(function (k) { return mg[k].length >= 2; }).map(function (k) { return { cust: k, ids: mg[k] }; });
+  var nd = ops.filter(function (o) { return o.op === 'draft'; }).length + groups.length;
   if (nd > 20 && !confirm('這次會開 ' + nd + ' 張草稿，確定嗎？（套用後可以整批復原）')) return;
   var btn = $('[data-act=scango]'); btn.disabled = true; S.scb = 'SC' + Date.now();
-  var made = 0, bound = 0, skipped = 0, errs = [], i = 0, msg = $('#scmsg');
+  var made = 0, bound = 0, skipped = 0, errs = [], i = 0, gi = 0, merged = 0, msg = $('#scmsg');
   (function next() {
+    if (i >= ops.length && gi < groups.length) {
+      var g = groups[gi++]; msg.innerHTML = '合併處理中… ' + gi + ' / ' + groups.length;
+      return api('scanMerge', { batchId: S.scb, cust: g.cust, ids: g.ids }).then(function (r) {
+        if (!r || !r.ok) { errs.push((r && r.msg) || '連線失敗'); return next(); }
+        made += (r.made || []).length; merged += (r.made || []).reduce(function (t, m) { return t + (m.count || 0); }, 0); errs = errs.concat(r.errs || []); next();
+      });
+    }
     if (i >= ops.length) {
       api('boot').then(function (b) { if (b && b.ok) S.quotes = b.quotes; });
-      var h = '<div style="color:var(--ok,#2a7d46)"><b>完成：</b>開草稿 ' + made + ' 張、綁定既有報價單 ' + bound + ' 筆、略過 ' + skipped + ' 筆。' + (made ? '草稿在「待辦 → 待補內容的報價單」。' : '') + '</div>' + (errs.length ? '<div style="color:var(--warn);margin-top:6px">沒成功 ' + errs.length + ' 筆：' + esc(errs.slice(0, 5).join('；')) + '</div>' : '') +
+      var h = '<div style="color:var(--ok,#2a7d46)"><b>完成：</b>開草稿 ' + made + ' 張' + (merged ? '（其中合併了 ' + merged + ' 個資料夾）' : '') + '、綁定既有報價單 ' + bound + ' 筆、略過 ' + skipped + ' 筆。' + (made ? '草稿在「待辦 → 待補內容的報價單」。' : '') + '</div>' + (errs.length ? '<div style="color:var(--warn);margin-top:6px">沒成功 ' + errs.length + ' 筆：' + esc(errs.slice(0, 5).join('；')) + '</div>' : '') +
         '<div style="margin-top:8px"><button class="btn" data-act="scanundo">復原這一批</button></div>';
       msg.innerHTML = h; btn.disabled = false; S.scp.items = []; scanLoadKeep(h); return;
     }
