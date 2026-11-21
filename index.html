@@ -1596,6 +1596,7 @@ document.addEventListener('click', function (e) {
   else if (a === 'filter') { S.filter = t.dataset.v; renderQuotes(); }
   else if (a === 'dpf') { S.dp = t.dataset.v; renderDone(); } else if (a === 'ppuse') openPrepaidModal(); else if (a === 'ppsave') prepaidSave(); else if (a === 'newcase') openNewCase(); else if (a === 'nczmake') ncMake(); else if (a === 'invimp') openInvImport(); else if (a === 'invpick') invPickFile(); else if (a === 'invgo') invGo(); else if (a === 'invundo') invUndo(); else if (a === 'newq') newQuote(); else if (a === 'open') openQuote(t.dataset.no);
   else if (a === 'scanopen') scanOpen(); else if (a === 'scannow') scanNow(); else if (a === 'scanalias') scanAlias(t.dataset.p); else if (a === 'scanall') scanAll(t.dataset.v); else if (a === 'scango') scanGo(); else if (a === 'scanundo') scanUndo(); else if (a === 'discard') discardDraft();
+  else if (a === 'afix') auditFix(t.dataset.no, t.dataset.inv); else if (a === 'asplit') auditSplit(t.dataset.inv); else if (a === 'aundo') auditUndo(t.dataset.id);
   else if (a === 'copyq') { e.stopPropagation(); copyQuote(t.dataset.no); }
   else if (a === 'back') { if (history.state && history.state.cnE) history.back(); else { E = null; render(); } }
   else if (a === 'qmore') { S.qlim = (S.qlim || qPage()) + 60; renderQuotes(); }
@@ -1667,6 +1668,7 @@ function tdCard(title, hint, rows, right) {
     (rest.length ? '<details class="mk"><summary>另外 ' + (rows.length - 6) + ' 筆</summary>' + rest.map(function (r) { return tdRow(r, right && right(r)); }).join('') + '</details>' : '') + '</div>';
 }
 function renderTodo() {
+  if (S.audit === undefined && !DEMO && S.user && (S.user.role === '老闆' || S.user.role === '財務')) loadAudit();
   var b = isBoss(), byNoDesc = function (x, y) { return String(y['報價單號']).localeCompare(String(x['報價單號'])); };
   var isGift = function (r) { return String(r['內部備註'] || '').indexOf('【新分院大禮包】') >= 0; };
   var L = S.quotes.filter(function (r) { return r['狀態'] === '已鎖定'; }), DA = S.quotes.filter(function (r) { return r['狀態'] === '草稿'; }).sort(byNoDesc), D = DA.filter(function (r) { return !isGift(r); }), G = DA.filter(isGift);
@@ -1674,13 +1676,54 @@ function renderTodo() {
   var diff = function (r) { if (r['發票'] !== '開發票' || noInv(r)) return false; var a = r['發票金額']; if (a === '' || a == null) return false; return Math.abs(Number(a) - recvOf(r)) >= 0.5; };
   var unpaid = L.filter(function (r) { return ['已收', '已收（尾差）', '無應收'].indexOf(r['收款進度'] || '未收') < 0 && recvOf(r) > 0; }).sort(function (x, y) { return String(x['報價日期']).localeCompare(String(y['報價日期'])); });
   var sumU = unpaid.reduce(function (t, r) { return t + recvOf(r); }, 0);
-  var cards = (b ? scanCardHTML() + tdCard('新分院大禮包待確認', '系統依梅科分院資訊表自動開好的草稿；確認機器與內容後按「儲存」就成為報價單', G, function (r) { return String(r['內部備註'] || '').indexOf('【機器未確認】') >= 0 ? pill('機器未確認', 'p-bad') : money(r['總金額']); }) + tdCard('待補內容的報價單', '新案件或還沒存成報價的草稿；填好品項與金額後按「儲存」', D, function (r) { return money(r['總金額']); }) + tdCard('發票待定案', '請決定開發票或免開發票', L.filter(function (r) { return r['發票'] === '待確認'; }).sort(byNoDesc)) : '') +
+  var cards = auditCardHTML() + (b ? scanCardHTML() + tdCard('新分院大禮包待確認', '系統依梅科分院資訊表自動開好的草稿；確認機器與內容後按「儲存」就成為報價單', G, function (r) { return String(r['內部備註'] || '').indexOf('【機器未確認】') >= 0 ? pill('機器未確認', 'p-bad') : money(r['總金額']); }) + tdCard('待補內容的報價單', '新案件或還沒存成報價的草稿；填好品項與金額後按「儲存」', D, function (r) { return money(r['總金額']); }) + tdCard('發票待定案', '請決定開發票或免開發票', L.filter(function (r) { return r['發票'] === '待確認'; }).sort(byNoDesc)) : '') +
     tdCard('還沒開發票', '報價中、需開發票，但還沒有發票號碼；完工後請先「轉入完工彙總」再填發票', L.filter(function (r) { return r['發票'] === '開發票' && noInv(r); }).sort(byNoDesc)) +
     tdCard('發票金額核對有差', '發票金額與應收不一致，請確認', L.filter(diff).sort(byNoDesc), function (r) { var d = Math.round((Number(r['發票金額']) - recvOf(r)) * 100) / 100; return pill('差 ' + (d > 0 ? '+' : '') + d.toLocaleString('en-US'), 'p-bad'); }) +
     tdCard('待收款', '合計 ' + money(sumU) + '；由舊到新', unpaid, function (r) { return money(recvOf(r)) + ' ' + pill(r['收款進度'] || '未收', progCls(r['收款進度'] || '未收')); });
   $('#main').innerHTML = '<h2 style="margin:0 0 4px;font-size:20px">待辦</h2><div style="color:var(--mute);margin-bottom:14px">點一筆就能直接處理' + (b ? ' <button class="btn" data-act="scannow" style="margin-left:8px">立即掃描案件資料夾</button>' : '') + '</div>' + (cards ? '<div class="tdgrid">' + cards + '</div>' : '<div class="card empty">目前沒有待辦，全部處理完了 ✓</div>');
 }
 
+
+
+/* ---- 發票對帳異常：同一個發票號碼在 2 張以上報價單、總額 0 卻有收款；可只清誤帶的發票欄位（單與收款都保留），整批可復原 ---- */
+function loadAudit() {
+  S.audit = null;
+  api('invAudit').then(function (r) { S.audit = (r && r.ok) ? r : { groups: [], zero: [], fixes: [], err: (r && r.msg) || '' }; if (S.view === 'todo') renderTodo(); });
+}
+function auditCardHTML() {
+  var A = S.audit; if (!A || A.err) return A && A.err ? '<div class="card"><div class="tdh"><h3>發票對帳異常</h3></div><div class="sum" style="color:var(--bad,#c0392b)">查核資料讀取失敗：' + esc(A.err) + '</div></div>' : '';
+  var n = (A.groups || []).length + (A.zero || []).length; if (!n && !(A.fixes || []).length) return '';
+  var b = isBoss();
+  var gh = (A.groups || []).map(function (g) {
+    return '<div style="border:1px solid var(--line,#e5e5e5);border-radius:12px;padding:10px 12px;margin:8px 0"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>發票 ' + esc(g.inv) + '</b>' + pill(g.rows.length + ' 張單都掛這張發票', 'p-bad') + '</div>' +
+      g.rows.map(function (r) {
+        return '<div class="trow" style="cursor:default"><div class="l" data-act="open" data-no="' + esc(r.no) + '" style="cursor:pointer"><b>' + esc(r.company) + '</b><span>' + esc(r.no) + '　' + esc(r.project) + '</span><span>報價總額 ' + money(r.total) + '；發票欄金額 ' + (r.invAmt === '' || r.invAmt == null ? '空' : money(r.invAmt)) + (r.paid ? '；已收 ' + money(r.paid) : '') + '</span></div><div class="r">' +
+          (b && !r.billed ? '<button class="btn" data-act="afix" data-no="' + esc(r.no) + '" data-inv="' + esc(g.inv) + '">這張誤帶，清掉發票</button>' : (r.billed ? pill('已請款', 'p-mute') : '')) + '</div></div>';
+      }).join('') + (b ? '<div style="text-align:right;margin-top:6px"><button class="btn" data-act="asplit" data-inv="' + esc(g.inv) + '">這是合法分攤，不再提醒</button></div>' : '') + '</div>';
+  }).join('');
+  var zh = (A.zero || []).map(function (z) {
+    return '<div class="trow" data-act="open" data-no="' + esc(z.no) + '"><div class="l"><b>' + esc(z.company) + '</b><span>' + esc(z.no) + '　' + esc(z.project) + '</span></div><div class="r">' + pill('總額 0 但已收 ' + money(z.paid), 'p-bad') + '</div></div>';
+  }).join('');
+  var fh = (A.fixes || []).length && b ? '<details class="mk"><summary>最近的修正批次（可復原）</summary>' + A.fixes.map(function (f) { return '<div class="trow" style="cursor:default"><div class="l"><b>' + esc(f.id) + '</b><span>' + esc(f.at) + '；清除 ' + f.n + ' 張</span></div><div class="r"><button class="btn" data-act="aundo" data-id="' + esc(f.id) + '">復原這批</button></div></div>'; }).join('') + '</details>' : '';
+  return '<div class="card"><div class="tdh"><h3>發票對帳異常</h3>' + (n ? pill(n + ' 項', 'p-bad') : pill('已無異常', 'p-ok')) + '</div><div class="sum" style="color:var(--mute);font-size:13px;margin-bottom:6px">同一個發票號碼出現在多張報價單，通常是匯入時誤帶。按「清掉發票」只會清這張單的發票欄位，報價單與收款都保留、不作廢，可整批復原。</div>' +
+    gh + (zh ? '<div style="margin-top:10px;font-weight:600">總額 0 卻有收款（請核對收款屬於哪張單）</div>' + zh : '') + fh + '</div>';
+}
+function auditFix(no, inv) {
+  if (!confirm('把 ' + no + ' 上誤帶的發票 ' + inv + ' 清掉？\n\n只清發票號碼、金額、日期、開票狀態；這張報價單與它的收款都保留，不會作廢。\n之後可在本卡「最近的修正批次」復原。')) return;
+  var id = 'BF' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  api('invFixApply', { batchId: id, items: [{ no: no, inv: inv }] }).then(function (r) {
+    if (!r || !r.ok) return toast(esc((r && r.msg) || '修正失敗'), 6000);
+    (r.rows || []).forEach(setRow); S.audit = undefined; toast('已清除 ' + esc(no) + ' 的誤帶發票（單與收款保留）；可在本卡復原', 4200); renderTodo();
+  });
+}
+function auditSplit(inv) {
+  if (!confirm('確認發票 ' + inv + ' 本來就是由多張報價單分攤的？\n記下後這張發票不會再出現在「發票對帳異常」。')) return;
+  api('invSplitOk', { inv: inv }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '記錄失敗'), 5000); S.audit = undefined; toast('已記下，不再提醒'); renderTodo(); });
+}
+function auditUndo(id) {
+  if (!confirm('復原修正批次 ' + id + '？\n會把當時清掉的發票欄位原樣填回去。')) return;
+  api('invFixUndo', { batchId: id }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '復原失敗'), 6000); (r.rows || []).forEach(setRow); S.audit = undefined; toast('已復原'); renderTodo(); });
+}
 
 /* ---- 案件資料夾偵測：背景掃描、待辦卡片、對帳視窗 ---- */
 function scanBg(force) {
