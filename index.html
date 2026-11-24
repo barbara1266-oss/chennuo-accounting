@@ -429,7 +429,7 @@ function boot() {
   api('boot').then(function (r) {
     if (!r || !r.ok) { if (r && r.code !== 'AUTH') toast(esc((r && r.msg) || '載入失敗')); return render(); }
     S.user = r.user; S.assets = r.assets || {}; S.settings = r.settings; S.customers = r.customers; S.items = r.items; S.vendors = r.vendors || []; S.branches = r.branches || []; S.terms = r.terms; S.quotes = r.quotes; S.kinds = r.kinds;
-    render(); scanBg(false);
+    render(); scanBg(false); briefLoad(true);
   });
 }
 function doLogin() {
@@ -456,11 +456,11 @@ function render() {
     ['待辦', [['todo', '待辦']]],
     ['一般業務', [['quotesG', '一般報價單'], ['customersG', '客戶資料'], ['itemsG', '收費明細'], ['termsG', '一般注意事項']]],
     ['梅科專區', [['quotesM', '梅科報價單'], ['branches', '分院紀錄'], ['customersM', '梅科旗下'], ['itemsM', '梅科收費明細'], ['termsM', '梅科注意事項']]],
-    ['請款／財務', [['done', '完工彙總'], ['pays', '收款'], ['pack', '梅科請款'], ['billing', '一般請款']]],
+    ['請款／財務', [['done', '完工彙總'], ['pays', '收款'], ['pack', '梅科請款'], ['billing', '一般請款'], ['vprepaid', '預付廠商'], ['chase', '追款清單'], ['mrev', '月營收表']]],
     ['設定', [['vendors', '廠商'], ['users', '人員'], ['ragic', '同步 Ragic']]]
   ] : [
     ['待辦', [['todo', '待辦']]],
-    ['請款／財務', [['quotesG', '一般報價單'], ['quotesM', '梅科報價單'], ['pays', '收款'], ['billing', '一般請款'], ['pack', '梅科請款']]]
+    ['請款／財務', [['quotesG', '一般報價單'], ['quotesM', '梅科報價單'], ['pays', '收款'], ['billing', '一般請款'], ['pack', '梅科請款'], ['vprepaid', '預付廠商'], ['chase', '追款清單'], ['mrev', '月營收表']]]
   ];
   var ICON = { '待辦': '🔔', '一般業務': '📄', '梅科專區': '🏥', '請款／財務': '💰', '設定': '⚙️' };
   var gi = -1; groups.forEach(function (g, i) { if (g[1].some(function (t) { return t[0] === S.view; })) gi = i; });
@@ -474,7 +474,7 @@ function render() {
     '</div><div class="who navwho">' + who + '</div></nav><div class="content"><div class="mtop"><div class="brand sm"><b>Sincerity</b><i>晨諾創意</i></div><div class="who">' + who + '</div></div>' +
     (groups[gi][1].length > 1 ? '<div class="subin">' + zt + groups[gi][1].map(function (t) { return '<button class="tab sub' + (S.view === t[0] && !E ? ' on' : '') + '" data-act="tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' : '') + '<main id="main"></main></div></div>';
   window.__groups = groups;
-  E ? renderEditor() : (S.view === 'todo' ? renderTodo() : S.view === 'quotesG' || S.view === 'quotesM' ? renderQuotes() : S.view === 'customersG' ? renderMaster('customers', 'G') : S.view === 'customersM' ? renderMaster('customers', 'M') : S.view === 'itemsG' ? renderMaster('items', 'G') : S.view === 'itemsM' ? renderMaster('items', 'M') : S.view === 'users' ? renderUsers() : S.view === 'ragic' ? renderRagic() : S.view === 'billing' ? renderBilling() : S.view === 'pays' ? renderPays() : S.view === 'done' ? renderDone() : S.view === 'pack' ? renderPack() : S.view === 'termsG' ? renderMaster('terms', 'G') : S.view === 'termsM' ? renderMaster('terms', 'M') : renderMaster(S.view));
+  E ? renderEditor() : (S.view === 'todo' ? renderTodo() : S.view === 'quotesG' || S.view === 'quotesM' ? renderQuotes() : S.view === 'customersG' ? renderMaster('customers', 'G') : S.view === 'customersM' ? renderMaster('customers', 'M') : S.view === 'itemsG' ? renderMaster('items', 'G') : S.view === 'itemsM' ? renderMaster('items', 'M') : S.view === 'users' ? renderUsers() : S.view === 'ragic' ? renderRagic() : S.view === 'billing' ? renderBilling() : S.view === 'pays' ? renderPays() : S.view === 'done' ? renderDone() : S.view === 'pack' ? renderPack() : S.view === 'vprepaid' ? renderVP() : S.view === 'chase' ? renderChase() : S.view === 'mrev' ? renderMR() : S.view === 'termsG' ? renderMaster('terms', 'G') : S.view === 'termsM' ? renderMaster('terms', 'M') : renderMaster(S.view));
   navSync();
 }
 
@@ -522,7 +522,7 @@ document.addEventListener('input', function (e) { var t = e.target, w = t && t.c
 document.addEventListener('change', function (e) { var t = e.target; if (t && t.dataset && t.dataset.dc) dnCheck(); });
 var CFG = {
   customers: { title: '客戶資料', key: '客戶編號', fin: 1, cols: ['客戶編號', '類型', '公司', '客戶體系', '聯絡人', '電話'], fields: [['客戶編號', 'text'], ['類型', 'select', ['一般', '梅科']], ['公司', 'text'], ['客戶簡稱', 'text'], ['客戶體系', 'text'], ['統編', 'text'], ['聯絡人', 'text'], ['E-mail', 'text'], ['電話', 'text'], ['地址', 'addr', '郵遞區號'], ['送貨地址', 'addr', '送貨郵遞區號'], ['BNI引薦', 'select', ['否', '是']], ['BNI分會', 'text'], ['BNI引薦人', 'text'], ['預設免開發票', 'select', ['否', '是']], ['預設結帳週期', 'text'], ['店經理', 'text'], ['區經理', 'text'], ['匯款後五碼', 'text'], ['銀行名稱', 'text'], ['備註', 'textarea']] },
-  vendors: { title: '廠商', key: '廠商編號', fin: 1, cols: ['廠商編號', '名稱', '聯絡人', '電話'], fields: [['廠商編號', 'text'], ['名稱', 'text'], ['簡稱', 'text'], ['類別', 'text'], ['統編', 'text'], ['負責人', 'text'], ['聯絡人', 'text'], ['採購負責人', 'text'], ['電話', 'text'], ['手機', 'text'], ['傳真', 'text'], ['E-mail', 'text'], ['地址', 'addr', '區號'], ['匯款銀行', 'text'], ['帳戶後5碼', 'text'], ['存款帳戶', 'text'], ['存摺照片', 'text'], ['備註', 'textarea']] },
+  vendors: { title: '廠商', key: '廠商編號', fin: 1, cols: ['廠商編號', '名稱', '聯絡人', '電話'], fields: [['廠商編號', 'text'], ['名稱', 'text'], ['簡稱', 'text'], ['類別', 'text'], ['統編', 'text'], ['負責人', 'text'], ['聯絡人', 'text'], ['採購負責人', 'text'], ['電話', 'text'], ['手機', 'text'], ['傳真', 'text'], ['E-mail', 'text'], ['地址', 'addr', '區號'], ['匯款銀行', 'text'], ['帳戶後5碼', 'text'], ['存款帳戶', 'text'], ['存摺照片', 'text'], ['付款制度', 'select', ['一般', '預付']], ['備註', 'textarea']] },
   items: { title: '收費明細', key: '商品編號', fin: 1, cat: '類別', cols: ['商品編號', '類別', '項目名稱', '單價', '成本', '單位'], fields: [['商品編號', 'text'], ['類別', 'text'], ['產品', 'text'], ['項目名稱', 'text'], ['規格內容', 'textarea'], ['單價', 'number'], ['成本', 'number'], ['單位', 'text'], ['適用', 'select', ['一般', '梅科']], ['備註', 'textarea']] },
   branches: { title: '分院紀錄', key: '分院代號', fin: 1, cols: ['分院代號', '客戶編號', '分院名稱', '對外公司名', '統編', '帳號末五碼', '店點編號', '以本系統為準', '啟用'], fields: [['分院代號', 'text'], ['客戶編號', 'select', 'CUSTS'], ['分院名稱', 'text'], ['對外公司名', 'text'], ['統編', 'text'], ['帳號末五碼', 'text'], ['店點編號', 'text'], ['地址', 'addr', '郵遞區號'], ['震波', 'select', ['', '有', '無']], ['高能雷射', 'select', ['', '有', '無']], ['INDIBA', 'select', ['', '有', '無']], ['以本系統為準', 'select', ['否', '是']], ['啟用', 'select', ['是', '否']]] },
   terms: { title: '注意事項', key: '條款ID', auto: true, cols: ['排序', '標題', '預設勾選'], fields: [['排序', 'number'], ['標題', 'text'], ['內容', 'textarea', 8], ['預設勾選', 'check']] }
@@ -1365,14 +1365,14 @@ function openCostModal(no) {
 function costDraw() {
   var d = CS && CS.d, el = $('#csb'); if (!d || !el) return;
   var ed = CS.edit ? d.entries.filter(function (e) { return e.id === CS.edit; })[0] : null;
-  var rows = d.entries.map(function (e) { return '<tr><td>' + esc(e.date.replace(/-/g, '/')) + '</td><td>' + esc(e.vendor) + '</td><td>' + esc(e.note) + (e.src === 'Ragic匯入' ? ' ' + pill('Ragic 匯入', 'p-mute') : '') + (e.chk ? ' ' + pill('待確認', 'p-warn') : '') + '</td><td class="num">' + money(e.amount) + '</td><td style="white-space:nowrap"><button class="btn sm" data-act="costedit" data-id="' + esc(e.id) + '">改</button> <button class="btn sm" data-act="costdel" data-id="' + esc(e.id) + '">刪</button></td></tr>'; }).join('');
+  var rows = d.entries.map(function (e) { return '<tr><td>' + esc(e.date.replace(/-/g, '/')) + '</td><td>' + esc(e.vendor) + '</td><td>' + esc(e.note) + (e.pm ? ' ' + pill(e.pm, 'p-mute') : '') + (e.jh ? ' ' + pill('健豪 ' + e.jh, 'p-mute') : '') + (e.src === 'Ragic匯入' ? ' ' + pill('Ragic 匯入', 'p-mute') : '') + (e.chk ? ' ' + pill('待確認', 'p-warn') : '') + '</td><td class="num">' + money(e.amount) + '</td><td style="white-space:nowrap"><button class="btn sm" data-act="costedit" data-id="' + esc(e.id) + '">改</button> <button class="btn sm" data-act="costdel" data-id="' + esc(e.id) + '">刪</button></td></tr>'; }).join('');
   var vend = (S.vendors || []).map(function (v) { return '<option value="' + esc(v['名稱']) + '">'; }).join('');
   el.innerHTML = '<div style="color:var(--mute);font-size:13.5px;margin-bottom:10px">' + esc(d.company || '') + (d.project ? '｜' + esc(d.project) : '') + '　銷售額（未稅） ' + money(d.sales) + '</div>' +
     (rows ? '<div class="sc"><table class="ls nolink"><tr><th>日期</th><th>廠商</th><th>備註</th><th class="num">金額</th><th></th></tr>' + rows + '</table></div>' : '<div class="empty" style="padding:10px 0">還沒有記錄的成本。</div>') +
     (d.lineCost ? '<div style="color:var(--mute);margin-top:8px;font-size:13.5px">另外，報價單明細列上已填的成本 ' + money(d.lineCost) + '（要改請到報價單裡改）</div>' : '') +
     '<div style="margin:12px 0;font-size:15px">成本合計 <b>' + money(d.total) + '</b>　預估毛利 <b>' + money(r2(d.sales - d.total)) + '</b>' + (d.noCost ? '　' + pill('已標示確定無成本', 'p-ok') : '') + '</div>' +
     '<div style="border-top:1px solid var(--line,#eee);padding-top:12px"><div style="font-weight:600;margin-bottom:8px">' + (ed ? '修改這一筆' : '＋ 記一筆成本') + '</div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px"><div><label class="f">日期</label><input class="in" id="cs_date" type="date" value="' + esc(ed ? ed.date : today()) + '"></div><div><label class="f">金額</label><input class="in" id="cs_amt" type="number" inputmode="decimal" min="0" step="any" placeholder="例如 1200" value="' + (ed ? ed.amount : '') + '"></div><div><label class="f">廠商（選填）</label><input class="in" id="cs_vendor" list="dlcsv" value="' + esc(ed ? ed.vendor : '') + '"><datalist id="dlcsv">' + vend + '</datalist></div><div><label class="f">備註（選填）</label><input class="in" id="cs_note" value="' + esc(ed ? ed.note : '') + '" maxlength="200"></div></div></div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px"><div><label class="f">日期</label><input class="in" id="cs_date" type="date" value="' + esc(ed ? ed.date : today()) + '"></div><div><label class="f">金額</label><input class="in" id="cs_amt" type="number" inputmode="decimal" min="0" step="any" placeholder="例如 1200" value="' + (ed ? ed.amount : '') + '"></div><div><label class="f">廠商（選填）</label><input class="in" id="cs_vendor" list="dlcsv" value="' + esc(ed ? ed.vendor : '') + '"><datalist id="dlcsv">' + vend + '</datalist></div><div><label class="f">備註（選填）</label><input class="in" id="cs_note" value="' + esc(ed ? ed.note : '') + '" maxlength="200"></div><div><label class="f">付款方式（選填）</label><select class="in" id="cs_pm">' + ['', '預付扣抵', '匯款', '現金', '其他'].map(function (x) { return '<option' + ((ed && ed.pm === x) ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div><div><label class="f">健豪訂單號（選填）</label><input class="in" id="cs_jh" value="' + esc(ed ? ed.jh : '') + '" maxlength="40"></div></div></div>' +
     '<div style="display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-top:18px"><div>' + (d.total > 0 ? '' : '<button class="btn" data-act="costnone">' + (d.noCost ? '取消「確定無成本」' : '這張確定沒有成本') + '</button>') + '</div><div style="display:flex;gap:10px">' + (ed ? '<button class="btn" data-act="costcancel">取消修改</button>' : '') + '<button class="btn" data-act="mclose">關閉</button><button class="btn pri" data-act="costsave">' + (ed ? '儲存修改' : '記下這筆') + '</button></div></div>';
 }
 function costSync(r) {
@@ -1383,7 +1383,7 @@ function costSync(r) {
 function costSave() {
   var amt = Number($('#cs_amt').value); if (!(amt > 0)) return toast('金額請填大於 0 的數字');
   var btn = $('[data-act=costsave]'); btn.disabled = true;
-  api('costSave', { no: CS.no, id: CS.edit, date: $('#cs_date').value, vendor: $('#cs_vendor').value, amount: amt, note: $('#cs_note').value }).then(function (r) {
+  api('costSave', { no: CS.no, id: CS.edit, date: $('#cs_date').value, vendor: $('#cs_vendor').value, amount: amt, note: $('#cs_note').value, payMethod: $('#cs_pm').value, jhNo: $('#cs_jh').value }).then(function (r) {
     if (!r || !r.ok) { btn.disabled = false; return toast(esc((r && r.msg) || '儲存失敗'), 4200); }
     CS.d = r; CS.edit = ''; costSync(r); costDraw(); toast('已記下');
   });
@@ -1669,6 +1669,7 @@ function tdCard(title, hint, rows, right) {
 }
 function renderTodo() {
   if (S.audit === undefined && !DEMO && S.user && (S.user.role === '老闆' || S.user.role === '財務')) loadAudit();
+  if (S.brief === undefined && !DEMO && S.user && (S.user.role === '老闆' || S.user.role === '財務')) { S.brief = null; briefLoad(false); }
   var b = isBoss(), byNoDesc = function (x, y) { return String(y['報價單號']).localeCompare(String(x['報價單號'])); };
   var isGift = function (r) { return String(r['內部備註'] || '').indexOf('【新分院大禮包】') >= 0; };
   var L = S.quotes.filter(function (r) { return r['狀態'] === '已鎖定'; }), DA = S.quotes.filter(function (r) { return r['狀態'] === '草稿'; }).sort(byNoDesc), D = DA.filter(function (r) { return !isGift(r); }), G = DA.filter(isGift);
@@ -1676,7 +1677,7 @@ function renderTodo() {
   var diff = function (r) { if (r['發票'] !== '開發票' || noInv(r)) return false; var a = r['發票金額']; if (a === '' || a == null) return false; return Math.abs(Number(a) - recvOf(r)) >= 0.5; };
   var unpaid = L.filter(function (r) { return ['已收', '已收（尾差）', '無應收'].indexOf(r['收款進度'] || '未收') < 0 && recvOf(r) > 0; }).sort(function (x, y) { return String(x['報價日期']).localeCompare(String(y['報價日期'])); });
   var sumU = unpaid.reduce(function (t, r) { return t + recvOf(r); }, 0);
-  var cards = auditCardHTML() + (b ? scanCardHTML() + tdCard('新分院大禮包待確認', '系統依梅科分院資訊表自動開好的草稿；確認機器與內容後按「儲存」就成為報價單', G, function (r) { return String(r['內部備註'] || '').indexOf('【機器未確認】') >= 0 ? pill('機器未確認', 'p-bad') : money(r['總金額']); }) + tdCard('待補內容的報價單', '新案件或還沒存成報價的草稿；填好品項與金額後按「儲存」', D, function (r) { return money(r['總金額']); }) + tdCard('發票待定案', '請決定開發票或免開發票', L.filter(function (r) { return r['發票'] === '待確認'; }).sort(byNoDesc)) : '') +
+  var cards = monthCardHTML() + auditCardHTML() + (b ? scanCardHTML() + tdCard('新分院大禮包待確認', '系統依梅科分院資訊表自動開好的草稿；確認機器與內容後按「儲存」就成為報價單', G, function (r) { return String(r['內部備註'] || '').indexOf('【機器未確認】') >= 0 ? pill('機器未確認', 'p-bad') : money(r['總金額']); }) + tdCard('待補內容的報價單', '新案件或還沒存成報價的草稿；填好品項與金額後按「儲存」', D, function (r) { return money(r['總金額']); }) + tdCard('發票待定案', '請決定開發票或免開發票', L.filter(function (r) { return r['發票'] === '待確認'; }).sort(byNoDesc)) : '') +
     tdCard('還沒開發票', '報價中、需開發票，但還沒有發票號碼；完工後請先「轉入完工彙總」再填發票', L.filter(function (r) { return r['發票'] === '開發票' && noInv(r); }).sort(byNoDesc)) +
     tdCard('發票金額核對有差', '發票金額與應收不一致，請確認', L.filter(diff).sort(byNoDesc), function (r) { var d = Math.round((Number(r['發票金額']) - recvOf(r)) * 100) / 100; return pill('差 ' + (d > 0 ? '+' : '') + d.toLocaleString('en-US'), 'p-bad'); }) +
     tdCard('待收款', '合計 ' + money(sumU) + '；由舊到新', unpaid, function (r) { return money(recvOf(r)) + ' ' + pill(r['收款進度'] || '未收', progCls(r['收款進度'] || '未收')); });
@@ -1928,7 +1929,257 @@ document.addEventListener('click', function (e) {
   var o = tr.querySelector('td[data-act=open]'); if (o) o.click();
 });
 
-['render', 'renderTodo', 'renderEditor', 'renderLines', 'renderTerms', 'renderQuotes', 'renderMaster', 'renderUsers', 'drawUsers', 'renderBilling', 'renderPays', 'renderDone', 'renderPack', 'drawBill'].forEach(function (n) { var f = window[n]; window[n] = function () { RENDERING++; try { return f.apply(this, arguments); } finally { RENDERING--; } }; });
+
+/* =====================================================================
+ * 第 4 棒：預付廠商（健豪）／月結匯入／財務提醒與追款清單
+ * ===================================================================== */
+var VP = null, BR = null, CH = null, IMP = null;
+function vpCustLabel(c) { if (c === '內部') return '內部（晨諾自用）'; var x = (S.customers || []).filter(function (y) { return String(y['客戶編號']) === String(c); })[0]; return x ? (x['客戶簡稱'] || x['公司']) : (c || ''); }
+function vpCustOpts() { return '<option value="內部">內部（晨諾自用）</option>' + (S.customers || []).map(function (c) { return '<option value="' + esc(c['客戶編號'] + ' ' + (c['公司'] || '').replace(/\n/g, ' ')) + '">'; }).join(''); }
+function vpCustCode(v) { v = String(v || '').trim(); if (v.indexOf('內部') === 0) return '內部'; return v.split(' ')[0]; }
+function vpClean(t) { return String(t || '').replace(/^[@\s]*\{[^}]*\}/, '').replace(/\s+/g, ' ').trim() || String(t || ''); }
+
+/* ---- 檔案讀取：CSV 或 Excel，一律轉成「列」 ---- */
+function loadXLSX(cb) { if (window.XLSX) return cb(window.XLSX); var s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'; s.onload = function () { cb(window.XLSX); }; s.onerror = function () { cb(null); }; document.head.appendChild(s); }
+function readTableFile(f, cb) {
+  var nm = String(f.name || '').toLowerCase(), rd = new FileReader();
+  rd.onload = function () {
+    if (/\.xlsx?$/.test(nm)) {
+      loadXLSX(function (X) {
+        if (!X) return toast('Excel 轉換元件載入失敗，請先另存成 CSV 再匯入', 5200);
+        try { var wb = X.read(rd.result, { type: 'array' }); cb(X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' })); } catch (e) { toast('讀不出這個 Excel 檔'); }
+      });
+    } else {
+      var txt; try { txt = new TextDecoder('utf-8', { fatal: true }).decode(rd.result); } catch (e) { try { txt = new TextDecoder('big5').decode(rd.result); } catch (e2) { return toast('讀不出檔案內容，請確認是 CSV'); } }
+      cb(csvParse(txt));
+    }
+  };
+  rd.readAsArrayBuffer(f);
+}
+function colFind(H, names) { for (var i = 0; i < names.length; i++) { var j = H.findIndex(function (h) { return String(h).trim() === names[i]; }); if (j >= 0) return j; } for (var k = 0; k < names.length; k++) { var j2 = H.findIndex(function (h) { return String(h).indexOf(names[k]) >= 0; }); if (j2 >= 0) return j2; } return -1; }
+
+/* ---- 匯入視窗（健豪訂單／銀行明細共用） ---- */
+function openImport(kind) {
+  IMP = { kind: kind, rows: null, batch: '', done: false };
+  var jh = kind === 'jh';
+  mopen('<h3>' + (jh ? '匯入健豪訂單' : '匯入銀行明細') + '</h3><div id="impb"><div style="color:var(--mute);font-size:13.5px;margin-bottom:12px">' +
+    (jh ? '選擇健豪平台匯出的訂單檔（CSV 或 Excel）。可以重複匯入，已經匯入過的訂單不會重複寫入；稅額列會自動記成儲值。' : '選擇銀行匯出的明細檔（CSV 或 Excel）。存入會對應收款（只補空白的銀行入帳日期），提出依帳號後 5 碼歸廠商。') +
+    '先預覽、再確認，匯入後整批可復原。</div><input type="file" id="impf" accept=".csv,.xlsx,.xls,text/csv" style="display:none"><button class="btn pri" data-act="vp-imppick">選擇檔案</button></div></div>');
+  $('#impf').addEventListener('change', function () { var f = this.files[0]; if (f) impRead(f); });
+}
+function impRead(f) {
+  readTableFile(f, function (t) {
+    var H = (t[0] || []).map(function (x) { return String(x).trim(); }), jh = IMP.kind === 'jh', rows = [];
+    if (jh) {
+      var c = { date: colFind(H, ['訂單日期']), no: colFind(H, ['訂單號碼']), ship: colFind(H, ['出貨單编號', '出貨單編號']), content: colFind(H, ['印件內容']), item: colFind(H, ['品名及規格']), qty: colFind(H, ['數量']), unit: colFind(H, ['單位']), side: colFind(H, ['單/雙面']), remark: colFind(H, ['訂單備註']), qtyNote: colFind(H, ['數量備註']), sub: colFind(H, ['訂單小計']) };
+      if (c.date < 0 || c.no < 0 || c.sub < 0) return toast('這個檔案不像健豪訂單（找不到「訂單日期」「訂單號碼」「訂單小計」欄）', 5200);
+      rows = t.slice(1).map(function (r) { var o = {}; Object.keys(c).forEach(function (k) { o[k] = c[k] < 0 ? '' : String(r[c[k]] == null ? '' : r[c[k]]); }); return o; });
+    } else {
+      var b = { bdate: colFind(H, ['帳務日期']), tdate: colFind(H, ['實際交易日期']), ttime: colFind(H, ['實際交易時間']), memo: colFind(H, ['摘要']), out: colFind(H, ['提']), inn: colFind(H, ['存']), bal: colFind(H, ['餘額']), remark: colFind(H, ['備註']), acct: colFind(H, ['轉出入銀行代號/帳號', '帳號']) };
+      if (b.bdate < 0 && b.tdate < 0) return toast('這個檔案不像銀行明細（找不到「帳務日期」欄）', 5200);
+      if (b.out < 0 && b.inn < 0) return toast('找不到「提」「存」金額欄', 5200);
+      rows = t.slice(1).map(function (r) { var o = {}; Object.keys(b).forEach(function (k) { o[k] = b[k] < 0 ? '' : String(r[b[k]] == null ? '' : r[b[k]]); }); return o; });
+    }
+    IMP.rows = rows; $('#impb').innerHTML = '<div class="empty"><span class="spin"></span>比對中（共 ' + rows.length + ' 列）…</div>';
+    api(jh ? 'vpOrderPreview' : 'bankPreview', { rows: rows }).then(function (r) { if (!r || !r.ok) { $('#impb').innerHTML = '<div style="color:var(--bad)">' + esc((r && r.msg) || '比對失敗') + '</div>'; return; } IMP.prev = r; impDraw(); });
+  });
+}
+function impDraw() {
+  var r = IMP.prev, s = r.summary, jh = IMP.kind === 'jh', h = '';
+  if (jh) {
+    h = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">' + pill('新訂單 ' + s.newOrders + ' 列（' + money(s.newAmount) + '）', s.newOrders ? 'p-ok' : 'p-mute') + pill('新儲值 ' + s.newTops, s.newTops ? 'p-ok' : 'p-mute') + pill('已匯入過 ' + s.dup, 'p-mute') + (s.pending ? pill('待歸屬 ' + s.pending, 'p-warn') : '') + (s.old ? pill('起算日前略過 ' + s.old, 'p-mute') : '') + (s.bad ? pill('格式有誤 ' + s.bad, 'p-bad') : '') + '</div>' +
+      '<div style="margin-bottom:10px">餘額：目前 <b>' + money(s.balanceNow) + '</b> → 匯入後 <b>' + money(s.balanceAfter) + '</b>（未稅）</div>' +
+      (r.tops.length ? '<h4 style="margin:10px 0 6px">儲值（稅額列）</h4><div class="sc"><table class="ls nolink"><tr><th>日期</th><th>發票</th><th class="num">未稅</th><th class="num">含稅</th></tr>' + r.tops.map(function (t) { return '<tr><td>' + esc(t.date) + '</td><td>' + esc(t.inv) + '</td><td class="num">' + money(t.net) + '</td><td class="num">' + money(t.total) + '</td></tr>'; }).join('') + '</table></div>' : '') +
+      (r.special.length ? '<h4 style="margin:10px 0 6px">扣款／退款列（請一起校對）</h4><div class="sc"><table class="ls nolink"><tr><th>日期</th><th>訂單</th><th>內容</th><th class="num">金額</th></tr>' + r.special.map(function (t) { return '<tr><td>' + esc(t.date) + '</td><td>' + esc(t.no) + '</td><td>' + esc(t.item + ' ' + vpClean(t.content)) + '</td><td class="num">' + money(t.amount) + '</td></tr>'; }).join('') + '</table></div>' : '') +
+      (r.pendingList.length ? '<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--mute)">還歸不到客戶的印件（' + s.pending + ' 列，匯入後到「預付廠商」頁處理）</summary><div class="sc"><table class="ls nolink"><tr><th>印件內容</th><th class="num">金額</th></tr>' + r.pendingList.map(function (t) { return '<tr><td>' + esc(vpClean(t.content)) + '</td><td class="num">' + money(t.amount) + '</td></tr>'; }).join('') + '</table></div></details>' : '');
+  } else {
+    h = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">' + pill('新明細 ' + s.rows + ' 列', s.rows ? 'p-ok' : 'p-mute') + pill('已匯入過 ' + s.dup, 'p-mute') + pill('存入 ' + money(s.deposit), 'p-mute') + pill('提出 ' + money(s.withdraw), 'p-mute') + (s.bad ? pill('格式有誤 ' + s.bad, 'p-bad') : '') + '</div>' +
+      '<div style="margin-bottom:10px;color:var(--mute);font-size:13.5px">期間 ' + esc(s.from || '') + ' ～ ' + esc(s.to || '') + '</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">' + pill('存入已對上收款 ' + s.linked, 'p-ok') + pill('可補銀行入帳日期 ' + s.canLink, s.canLink ? 'p-ok' : 'p-mute') + pill('多筆可能 ' + s.ambiguous, s.ambiguous ? 'p-warn' : 'p-mute') + pill('存入找不到收款 ' + s.none, s.none ? 'p-warn' : 'p-mute') + pill('儲值對上 ' + s.topHit, s.topHit ? 'p-ok' : 'p-mute') + pill('提出歸不到廠商 ' + s.unk, s.unk ? 'p-warn' : 'p-mute') + '</div>' +
+      (r.vend.length ? '<h4 style="margin:10px 0 6px">提出：依帳號歸廠商</h4><div class="sc"><table class="ls nolink"><tr><th>廠商</th><th class="num">金額</th></tr>' + r.vend.map(function (t) { return '<tr><td>' + esc(t.name) + '</td><td class="num">' + money(t.amount) + '</td></tr>'; }).join('') + '</table></div>' : '') +
+      (r.none.length ? '<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--mute)">存入找不到對應收款（' + s.none + '，常是梅科一次匯多張）</summary><div class="sc"><table class="ls nolink"><tr><th>日期</th><th class="num">金額</th><th>摘要／備註</th></tr>' + r.none.map(function (t) { return '<tr><td>' + esc(t.date) + '</td><td class="num">' + money(t.amount) + '</td><td>' + esc(t.memo + ' ' + t.remark) + '</td></tr>'; }).join('') + '</table></div></details>' : '') +
+      (r.unk.length ? '<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--mute)">提出歸不到廠商（' + s.unk + '）</summary><div class="sc"><table class="ls nolink"><tr><th>日期</th><th class="num">金額</th><th>帳號尾碼</th><th>摘要</th></tr>' + r.unk.map(function (t) { return '<tr><td>' + esc(t.date) + '</td><td class="num">' + money(t.amount) + '</td><td>' + esc(t.acct) + '</td><td>' + esc(t.memo) + '</td></tr>'; }).join('') + '</table></div></details>' : '');
+  }
+  var n = jh ? s.newOrders + s.newTops : s.rows;
+  $('#impb').innerHTML = h + '<div id="impmsg"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button class="btn" data-act="mclose">關閉</button>' + (n ? '<button class="btn pri" data-act="vp-impgo">確認匯入</button>' : '') + '</div>';
+}
+function impGo() {
+  if (!confirm('確定匯入嗎？（匯入後整批可以復原）')) return;
+  var jh = IMP.kind === 'jh'; IMP.batch = (jh ? 'BV' : 'BK') + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  var btn = $('[data-act=vp-impgo]'); if (btn) btn.disabled = true;
+  api(jh ? 'vpOrderApply' : 'bankApply', { batchId: IMP.batch, rows: IMP.rows }).then(function (r) {
+    if (!r || !r.ok) { if (btn) btn.disabled = false; return toast(esc((r && r.msg) || '寫入失敗，請先確認結果再決定要不要重按'), 6500); }
+    IMP.done = true; if (r.info) VP = r.info; BR = null;
+    $('#impb').innerHTML = '<h4>' + (jh ? '已匯入訂單 ' + r.orders + ' 列、儲值 ' + r.tops + ' 筆' : '已匯入銀行明細 ' + r.rows + ' 列；補上銀行入帳日期 ' + r.payDates + ' 筆、儲值對上 ' + r.topups + ' 筆') + '</h4><div style="color:var(--mute)">這一批可以在下面復原。</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button class="btn" data-act="vp-impundo">復原這一批</button><button class="btn pri" data-act="mclose">完成</button></div>';
+    if (S.view === 'vprepaid') renderVP(); briefLoad(false);
+  });
+}
+function impUndo() {
+  if (!confirm('確定把這一批匯入的資料全部復原（標為作廢）嗎？')) return;
+  api(IMP.kind === 'jh' ? 'vpOrderUndo' : 'bankUndo', { batchId: IMP.batch }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '復原失敗'), 6000); if (r.info) VP = r.info; var m = $('#md'); if (m) m.remove(); toast('已復原'); if (S.view === 'vprepaid') renderVP(); briefLoad(false); });
+}
+
+/* ---- 預付廠商頁 ---- */
+function renderVP() {
+  if (!VP) { $('#main').innerHTML = '<div class="empty"><span class="spin"></span>載入中…</div>'; return api('vpInfo').then(function (r) { if (!r || !r.ok) { $('#main').innerHTML = '<div class="card empty">讀取失敗：' + esc((r && r.msg) || '') + '</div>'; return; } VP = r; renderVP(); }); }
+  var v = VP, b = isBoss() || (S.user && S.user.role === '財務');
+  var head = '<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start"><div><div style="color:var(--mute);font-size:13.5px">' + esc(v.vendor.name || '預付廠商') + '　預付餘額（未稅）</div><div style="font-size:34px;font-weight:700;margin:2px 0">' + money(v.balance) + '</div>' +
+    (v.warn ? '<div>' + pill('低於 ' + money(v.thr) + '，該儲值了', 'p-bad') + (v.daysLeft != null ? ' ' + pill('約再用 ' + v.daysLeft + ' 天', 'p-warn') : '') + '</div>' : (v.daysLeft != null ? '<div style="color:var(--mute);font-size:13.5px">依近 90 天用量，預估還能用約 ' + v.daysLeft + ' 天（門檻 ' + money(v.thr) + '）</div>' : '')) + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri" data-act="vp-imp" data-k="jh">匯入健豪訂單</button><button class="btn" data-act="vp-imp" data-k="bank">匯入銀行明細</button><button class="btn" data-act="invimp">匯入電子發票</button></div></div>' +
+    '<div style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;font-size:13.5px"><div>期初餘額（' + esc(v.openingDate) + '）<br><b>' + money(v.opening) + '</b></div><div>累計儲值（未稅）<br><b>' + money(v.topSum) + '</b></div><div>累計扣抵<br><b>' + money(v.deducted) + '</b></div><div>近 90 天日均用量<br><b>' + money(v.avgDaily) + '</b></div></div>' +
+    '<div style="margin-top:10px;color:var(--mute);font-size:13px">匯款資料：' + esc(v.vendor.bank || '') + '　專屬帳號 ' + esc(v.vendor.acct || '（廠商表尚未填）') + '　後 5 碼 ' + esc(v.vendor.last5 || '') + '</div></div>';
+  var tp = '<div class="card"><h3 style="margin:0 0 8px">儲值紀錄</h3>' + (v.topups.length ? '<div class="sc"><table class="ls nolink"><tr><th>日期</th><th>發票</th><th class="num">未稅</th><th class="num">稅額</th><th class="num">含稅</th><th>銀行</th><th></th></tr>' + v.topups.map(function (t) {
+    return '<tr><td>' + esc(t.date) + '</td><td>' + esc(t.inv) + '</td><td class="num">' + money(t.net) + '</td><td class="num">' + money(t.tax) + '</td><td class="num">' + money(t.total) + '</td><td>' + pill(t.bank, t.bank === '已對上' ? 'p-ok' : 'p-warn') + (t.bankDate ? ' <span style="color:var(--mute);font-size:12.5px">' + esc(t.bankDate) + '</span>' : '') + '</td><td>' + (b ? (t.bank === '已對上' ? '<button class="btn sm" data-act="vp-top" data-id="' + esc(t.id) + '" data-b="待確認">改回待確認</button>' : '<button class="btn sm" data-act="vp-top" data-id="' + esc(t.id) + '" data-b="已對上">標記已對上</button>') : '') + '</td></tr>';
+  }).join('') + '</table></div><div style="color:var(--mute);font-size:12.5px;margin-top:6px">儲值那筆含稅款是銀行出帳，不算當月成本；每筆訂單扣抵才算成本。</div>' : '<div class="empty" style="padding:8px 0">還沒有儲值紀錄，匯入健豪訂單時會自動讀進來。</div>') + '</div>';
+  /* 待歸屬：依印件內容分組 */
+  var groups = {}, order = []; v.pending.forEach(function (o) { var k = vpClean(o.content); if (!groups[k]) { groups[k] = { ids: [], amt: 0, n: 0, date: o.date }; order.push(k); } groups[k].ids.push(o.id); groups[k].amt += o.amount; groups[k].n++; });
+  var pd = '<div class="card"><div class="tdh"><h3>待歸屬的扣抵</h3>' + (v.pendN ? pill(v.pendN + ' 列／' + money(v.pendAmt), 'p-warn') : pill('全部都歸好了', 'p-ok')) + '</div>' + (v.pendN ?
+    '<div style="color:var(--mute);font-size:13.5px;margin-bottom:8px">系統依印件名稱的線索自動歸客戶；歸不到的請勾選後指定客戶。想以後自動歸，可順便填一個關鍵字（例如「偉玉」）。</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center"><input class="in" id="vp_cust" list="vp_dl" placeholder="選客戶（輸入名稱或編號）" style="flex:1;min-width:200px"><datalist id="vp_dl">' + vpCustOpts() + '</datalist><input class="in" id="vp_kw" placeholder="記住關鍵字（選填）" style="width:170px"><button class="btn pri" data-act="vp-assign">歸屬所選</button><button class="btn sm" data-act="vp-all">全選／取消</button></div>' +
+    '<div class="sc"><table class="ls nolink"><tr><th></th><th>印件</th><th>日期</th><th class="num">列數</th><th class="num">金額</th></tr>' + order.map(function (k) { var g = groups[k]; return '<tr><td><input type="checkbox" data-vpids="' + esc(g.ids.join(',')) + '"></td><td>' + esc(k) + '</td><td>' + esc(g.date) + '</td><td class="num">' + g.n + '</td><td class="num">' + money(g.amt) + '</td></tr>'; }).join('') + '</table></div>' + (v.pendN > v.pending.length ? '<div style="color:var(--mute);font-size:12.5px;margin-top:6px">畫面一次顯示 ' + v.pending.length + ' 列，處理完會自動帶出下一批。</div>' : '') : '') + '</div>';
+  var ms = Object.keys(v.months).sort().reverse(), mh = '<div class="card"><h3 style="margin:0 0 8px">每月扣抵（未稅，算成本）</h3>' + (ms.length ? '<div class="sc"><table class="ls nolink"><tr><th>月份</th><th class="num">扣抵金額</th></tr>' + ms.map(function (m) { return '<tr><td>' + esc(m) + '</td><td class="num">' + money(v.months[m]) + '</td></tr>'; }).join('') + '</table></div>' : '<div class="empty" style="padding:8px 0">尚無資料</div>') + '</div>';
+  var rl = '<details class="card"><summary style="cursor:pointer;font-weight:600">自動歸屬線索（' + v.rules.length + ' 條）</summary><div style="color:var(--mute);font-size:13px;margin:8px 0">印件名稱含關鍵字（用 | 分隔多個）就自動歸給該客戶；存檔後會套用到還沒歸屬的訂單。</div><div id="vp_rules">' + v.rules.map(function (r, i) { return vpRuleRow(r, i); }).join('') + '</div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn sm" data-act="vp-ruleadd">＋ 新增一條</button><button class="btn pri sm" data-act="vp-rulesave">儲存線索</button></div></details>';
+  var rc = '<details class="card"><summary style="cursor:pointer;font-weight:600">最近的扣抵明細（' + v.recent.length + ' 列）</summary><div class="sc"><table class="ls nolink"><tr><th>日期</th><th>訂單</th><th>印件</th><th class="num">金額</th><th>客戶</th></tr>' + v.recent.map(function (o) { return '<tr><td>' + esc(o.date) + '</td><td>' + esc(o.no) + '</td><td>' + esc(vpClean(o.content)) + (o.type !== '訂單' ? ' ' + pill(o.type, 'p-mute') : '') + '</td><td class="num">' + money(o.amount) + '</td><td>' + (o.cust ? esc(vpCustLabel(o.cust)) : (o.st === '待歸屬' ? pill('待歸屬', 'p-warn') : '')) + '</td></tr>'; }).join('') + '</table></div></details>';
+  $('#main').innerHTML = '<h2 style="margin:0 0 12px;font-size:20px">預付廠商</h2><div class="tdgrid" style="grid-template-columns:1fr">' + head + pd + tp + mh + rl + rc + '</div>';
+}
+function vpRuleRow(r, i) { return '<div class="vprule" style="display:flex;gap:8px;margin:6px 0;align-items:center"><input class="in" data-rk value="' + esc(r.kw) + '" placeholder="關鍵字（用 | 分隔）" style="flex:1"><input class="in" data-rc list="vp_dl2" value="' + esc(r.cust === '內部' ? '內部（晨諾自用）' : (r.cust + ' ' + vpCustLabel(r.cust))) + '" placeholder="客戶" style="flex:1"><button class="btn sm" data-act="vp-ruledel">刪</button><datalist id="vp_dl2">' + vpCustOpts() + '</datalist></div>'; }
+function vpRulesCollect() { var out = []; document.querySelectorAll('#vp_rules .vprule').forEach(function (d) { var k = d.querySelector('[data-rk]').value.trim(), c = vpCustCode(d.querySelector('[data-rc]').value); if (k && c) out.push({ kw: k, cust: c }); }); return out; }
+function vpAssign() {
+  var ids = []; document.querySelectorAll('#main [data-vpids]:checked').forEach(function (c) { ids = ids.concat(c.dataset.vpids.split(',')); });
+  var cust = vpCustCode($('#vp_cust').value); if (!ids.length) return toast('請先勾選要歸屬的印件'); if (!cust) return toast('請選客戶');
+  api('vpAssign', { ids: ids, cust: cust, kw: $('#vp_kw').value.trim() }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '儲存失敗'), 5000); VP = r.info; toast('已歸屬 ' + r.n + ' 列'); renderVP(); briefLoad(false); });
+}
+
+/* ---- 追款／財務校對清單 ---- */
+function renderChase() {
+  if (!CH) { $('#main').innerHTML = '<div class="empty"><span class="spin"></span>整理中…</div>'; return api('chaseList').then(function (r) { if (!r || !r.ok) { $('#main').innerHTML = '<div class="card empty">讀取失敗：' + esc((r && r.msg) || '') + '</div>'; return; } CH = r; renderChase(); }); }
+  var c = CH, b = function (lo, hi) { return c.unpaid.filter(function (x) { return x.days >= lo && x.days < hi; }); };
+  function tbl(rows, right) { return rows.length ? rows.map(function (x) { return '<div class="trow" data-act="open" data-no="' + esc(x.no) + '"><div class="l"><b>' + esc(x.company) + '</b><span>' + esc(x.no) + '　' + esc(x.project) + '</span><span>' + (x.inv ? '發票 ' + esc(x.inv) + '；' : '') + '起算 ' + esc(x.base || '—') + '</span></div><div class="r">' + right(x) + '</div></div>'; }).join('') : '<div class="empty" style="padding:6px 0">沒有 ✓</div>'; }
+  function bucket(title, rows) { var t = rows.reduce(function (s, x) { return s + x.recv - x.paid; }, 0); return '<div class="card"><div class="tdh"><h3>' + title + '</h3>' + pill(rows.length + ' 張／' + money(r2(t)), rows.length ? 'p-bad' : 'p-ok') + '</div>' + tbl(rows, function (x) { return money(r2(x.recv - x.paid)) + ' ' + pill(x.days + ' 天', 'p-warn'); }) + '</div>'; }
+  var inv = c.invoice, iN = inv.groups + inv.zero + inv.calc + inv.over;
+  $('#main').innerHTML = '<h2 style="margin:0 0 4px;font-size:20px">追款清單</h2><div style="color:var(--mute);margin-bottom:14px">截至 ' + esc(c.today) + '；天數從發票日起算（沒有發票就用完工日、報價日）。點一筆可直接開啟處理。<button class="btn sm" data-act="vp-chaserefresh" style="margin-left:8px">重新整理</button></div><div class="tdgrid" style="grid-template-columns:1fr">' +
+    bucket('超過 90 天未收', b(90, 99999)) + bucket('60～89 天未收', b(60, 90)) + bucket('30～59 天未收', b(30, 60)) +
+    '<div class="card"><div class="tdh"><h3>金額不符</h3>' + pill(c.mismatch.length + ' 張', c.mismatch.length ? 'p-bad' : 'p-ok') + '</div>' + tbl(c.mismatch, function (x) { return pill(x.why, 'p-bad') + '<span style="margin-left:6px">應收 ' + money(x.recv) + '／已收 ' + money(x.paid) + (x.inv && x.invAmt !== '' && x.invAmt != null ? '／發票 ' + money(x.invAmt) : '') + '</span>'; }) + '</div>' +
+    '<div class="card"><div class="tdh"><h3>發票問題</h3>' + pill(iN + ' 項', iN ? 'p-bad' : 'p-ok') + '</div><div style="color:var(--mute);font-size:13.5px">同號掛多張單 ' + inv.groups + '；總額 0 卻有收款 ' + inv.zero + '；算式不符 ' + inv.calc + '；收款多於應收 ' + inv.over + '。詳細清單在「待辦」的發票與金額對帳異常卡。<br>平台已作廢但系統仍有效、號碼對得上但金額不同，會在「匯入電子發票」的預覽裡直接標出（⚠）。</div>' + (iN ? '<div style="margin-top:8px"><button class="btn" data-act="tab" data-v="todo">到待辦處理</button></div>' : '') + '</div></div>';
+}
+
+/* ---- 月結待辦／提醒摘要／徽章 ---- */
+function briefLoad(show) {
+  if (DEMO || !S.user || !(S.user.role === '老闆' || S.user.role === '財務')) return;
+  api('finBrief').then(function (r) { if (!r || !r.ok) return; S.brief = r; if (S.view === 'todo') renderTodo(); if (show && S.user.role === '老闆' && !S.briefShown) { S.briefShown = true; briefPop(); } else briefBadge(); });
+}
+function briefItems(r) {
+  var a = [], late = r.todos.filter(function (t) { return !t.done; });
+  late.forEach(function (t) { a.push({ t: (t.late ? '⏰ 已逾期：' : '☐ ') + t.label + '（' + t.due.slice(5).replace('-', '/') + ' 前）', bad: t.late }); });
+  if (r.prepaid.warn) a.push({ t: '預付餘額只剩 ' + money(r.prepaid.balance) + '，低於 ' + money(r.prepaid.thr) + (r.prepaid.daysLeft != null ? '（約 ' + r.prepaid.daysLeft + ' 天）' : '') + '，該儲值了', bad: true, v: 'vprepaid' });
+  if (r.pending) a.push({ t: '健豪扣抵有 ' + r.pending + ' 列還沒歸客戶', v: 'vprepaid' });
+  var u = r.unpaid; if (u.d90) a.push({ t: '超過 90 天未收 ' + u.d90 + ' 張（' + money(u.a90) + '）', bad: true, v: 'chase' }); if (u.d60) a.push({ t: '60～89 天未收 ' + u.d60 + ' 張（' + money(u.a60) + '）', v: 'chase' }); if (u.d30) a.push({ t: '30～59 天未收 ' + u.d30 + ' 張（' + money(u.a30) + '）', v: 'chase' });
+  if (r.mismatch) a.push({ t: '金額不符 ' + r.mismatch + ' 張', v: 'chase' }); if (r.invoiceIssues) a.push({ t: '發票問題 ' + r.invoiceIssues + ' 項', v: 'todo' });
+  return a;
+}
+function briefPop() {
+  var r = S.brief; if (!r) return; var a = briefItems(r), old = $('#bfpop'); if (old) old.remove(); var bd = $('#bfbadge'); if (bd) bd.remove();
+  if (!a.length) return briefBadge();
+  var d = document.createElement('div'); d.id = 'bfpop'; d.style.cssText = 'position:fixed;right:16px;top:64px;width:min(360px,calc(100vw - 32px));max-height:70vh;overflow:auto;background:#fff;border:1px solid var(--line,#e5e5e5);border-radius:16px;box-shadow:0 10px 32px rgba(0,0,0,.16);padding:14px 16px;z-index:60';
+  d.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>🔔 財務提醒</b><button class="btn sm ghost" data-act="vp-popclose">先關閉</button></div><div style="color:var(--mute);font-size:12.5px;margin-bottom:6px">不擋操作；關閉後右上角會留一顆小徽章，隨時可以點開再看。</div>' +
+    a.map(function (x) { return '<div style="padding:6px 0;border-top:1px solid var(--line,#eee);font-size:14px' + (x.bad ? ';color:var(--bad,#c0392b)' : '') + '">' + esc(x.t) + (x.v ? ' <a href="javascript:void 0" data-act="vp-popgo" data-v="' + x.v + '" style="margin-left:4px">前往</a>' : '') + '</div>'; }).join('');
+  document.body.appendChild(d);
+}
+function briefBadge() {
+  var r = S.brief, old = $('#bfbadge'); if (old) old.remove(); if (!r || $('#bfpop')) return; var a = briefItems(r); if (!a.length) return;
+  var b = document.createElement('button'); b.id = 'bfbadge'; b.className = 'btn sm'; b.setAttribute('data-act', 'vp-popopen'); b.style.cssText = 'position:fixed;right:16px;top:14px;z-index:60;border-radius:999px'; b.textContent = '🔔 財務提醒 ' + a.length; document.body.appendChild(b);
+}
+function monthCardHTML() {
+  var r = S.brief; if (!r) return ''; var ex = { jh: 'jh', bank: 'bank' };
+  var rows = r.todos.map(function (t) {
+    var btn = t.key === 'jh' || t.key === 'bank' ? '<button class="btn sm" data-act="vp-imp" data-k="' + t.key + '">去匯入</button>' : t.key === 'inv' ? '<button class="btn sm" data-act="invimp">去匯入</button>' : (t.key === 'sum' ? '<button class="btn sm" data-act="vp-mropen" data-ym="' + esc(r.prev) + '">看月營收表</button> ' : '') + '<button class="btn sm" data-act="vp-todo" data-k="' + t.key + '" data-u="' + (t.done ? 1 : '') + '">' + (t.done ? '取消打勾' : '完成打勾') + '</button>';
+    return '<div class="trow" style="cursor:default"><div class="l"><b>' + (t.done ? '✅ ' : '☐ ') + esc(t.label) + '</b><span>' + (t.done ? '本月已完成' : '預計 ' + t.due.slice(5).replace('-', '/') + ' 前' + (t.late ? '（已逾期）' : '')) + '</span></div><div class="r">' + (t.done && (t.key === 'jh' || t.key === 'bank' || t.key === 'inv') ? pill('已匯入', 'p-ok') : btn) + '</div></div>';
+  }).join('');
+  var left = r.todos.filter(function (t) { return !t.done; }).length;
+  return '<div class="card"><div class="tdh"><h3>' + esc(r.ym) + ' 月結待辦</h3>' + pill(left ? '還有 ' + left + ' 項' : '本月都完成了', left ? 'p-warn' : 'p-ok') + '</div><div style="color:var(--mute);font-size:13px;margin-bottom:6px">每月 1 日自動出現；5 日前匯入三份資料，10 日前出校對摘要。</div>' + rows + '</div>';
+}
+/* ---- 月營收表（依完工月份自動產生，版面比照 Ragic 月帳） ---- */
+var MR = null;
+function mrShift(ym, d) { var y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7)) + d; while (m < 1) { m += 12; y--; } while (m > 12) { m -= 12; y++; } return y + '-' + ('0' + m).slice(-2); }
+function goView(v) { S.gv = S.gv || {}; (window.__groups || []).forEach(function (g) { if (g[1].some(function (x) { return x[0] === v; })) S.gv[g[0]] = v; }); S.view = v; E = null; render(); }
+function renderMR() {
+  if (!MR) MR = { ym: mrShift(today().slice(0, 7), 0), d: null };
+  if (!MR.d) {
+    $('#main').innerHTML = '<div class="empty"><span class="spin"></span>整理 ' + esc(MR.ym) + ' 月營收表…</div>';
+    var want = MR.ym;
+    return api('monthRevenue', { ym: want }).then(function (r) { if (!MR || MR.ym !== want) return; if (!r || !r.ok) { $('#main').innerHTML = '<div class="card empty">讀取失敗：' + esc((r && r.msg) || '') + '</div>'; return; } MR.d = r; if (S.view === 'mrev') renderMR(); });
+  }
+  var d = MR.d, t = d.top, m = d.manual, boss = d.isBoss, nowYm = today().slice(0, 7);
+  var ms = d.months.slice(); [nowYm, MR.ym].forEach(function (x) { if (ms.indexOf(x) < 0) ms.push(x); }); ms.sort().reverse();
+  function box(label, val, sub, bad) { return '<div class="card" style="padding:12px 14px;margin:0"><div style="color:var(--mute);font-size:13px">' + label + '</div><div style="font-size:20px;font-weight:700' + (bad ? ';color:var(--bad)' : '') + '">' + val + '</div>' + (sub ? '<div style="color:var(--mute);font-size:12.5px">' + sub + '</div>' : '') + '</div>'; }
+  var grid = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px';
+  var rowsH = d.rows.length ? d.rows.map(function (x) {
+    return '<tr class="row" data-act="open" data-no="' + esc(x.no) + '" style="cursor:pointer"><td><b>' + esc(x.no) + '</b></td><td>' + esc(x.inv) + '</td><td>' + (x.cls === 'C' ? '梅科' : '一般') + '</td><td>' + esc(x.company) + '</td><td>' + esc(x.invoiced) + '</td><td>' + esc(String(x.date).replace(/-/g, '/')) + '</td><td class="num">' + money(x.sales) + '</td><td class="num">' + money(x.tax) + '</td><td>' + (x.got === '✔' ? '✔' : x.got ? pill('部分', 'p-warn') : pill('未收', 'p-mute')) + '</td><td class="num">' + (x.paid ? money(x.paid) : '') + '</td><td class="num">' + money(x.cost) + '</td><td class="num">' + (x.profit == null ? '' : money(x.profit)) + '</td></tr>';
+  }).join('') : '';
+  var bank = d.bank ? '<div style="' + grid + '">' + box('上月銀行金額', money(d.bank.prev), d.bank.prevDerived ? '由本月第一筆推算' : '') + box('本月銀行入帳', money(d.bank.deposit)) + box('本月銀行匯出', money(d.bank.withdraw)) + box('本月銀行餘額', money(d.bank.balance), d.bank.ok ? '驗算相符 ✔' : '驗算差 ' + money(r2(d.bank.balance - d.bank.check)), !d.bank.ok) + '</div>' +
+    (d.bank.outs.length ? '<details><summary style="cursor:pointer;color:var(--mute);margin-bottom:6px">本月銀行匯出明細（' + d.bank.outs.length + ' 筆）</summary><div class="sc"><table class="ls nolink"><tr><th>日期</th><th>備註</th><th>歸屬廠商</th><th class="num">金額</th></tr>' + d.bank.outs.map(function (o) { return '<tr><td>' + esc(o.date.replace(/-/g, '/')) + '</td><td>' + esc(o.memo) + '</td><td>' + esc(o.vendor) + '</td><td class="num">' + money(o.amount) + '</td></tr>'; }).join('') + '</table></div></details>' : '')
+    : '<div class="card empty" style="margin:0">這個月還沒有銀行明細。<div style="margin-top:10px"><button class="btn" data-act="vp-imp" data-k="bank">匯入銀行明細</button></div></div>';
+  var inp = function (id, v, ph, w) { return '<input class="in" id="' + id + '" value="' + esc(v) + '" placeholder="' + ph + '" style="width:' + w + '">'; };
+  var manual = '<div class="card" style="margin:0 0 12px"><div class="tdh"><h3>每月手動填寫</h3>' + (boss ? '<button class="btn sm pri" data-act="vp-mrsave">儲存</button>' : '') + '</div>' +
+    (boss ? '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px"><div><label class="f">其他成本（會計師、記帳費等）</label>' + inp('mr_other', m.other || '', '金額', '100%') + inp('mr_otherNote', m.otherNote, '備註', '100%') + '</div><div><label class="f">領現</label>' + inp('mr_draw', m.draw || '', '金額', '100%') + inp('mr_drawNote', m.drawNote, '備註', '100%') + '</div><div><label class="f">本月備註</label>' + inp('mr_note', m.note, '例如：欠款轉入、未付款項', '100%') + '</div></div>' +
+      '<div style="margin-top:10px;font-size:15px">結算（實際獲利 － 其他成本 － 領現） <b' + (d.settle < 0 ? ' style="color:var(--bad)"' : '') + '>' + money(d.settle) + '</b></div>'
+      : '<div style="font-size:14px">其他成本 <b>' + money(m.other) + '</b>' + (m.otherNote ? '（' + esc(m.otherNote) + '）' : '') + (m.note ? '　備註：' + esc(m.note) : '') + '</div>') + '</div>';
+  var opt = ms.map(function (x) { return '<option value="' + x + '"' + (x === MR.ym ? ' selected' : '') + '>' + x.replace('-', ' 年 ') + ' 月</option>'; }).join('');
+  $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">月營收表</h2><button class="btn sm" data-act="vp-mrgo" data-d="-1">‹ 上月</button><select class="in" id="mr_ym" style="width:auto">' + opt + '</select><button class="btn sm" data-act="vp-mrgo" data-d="1">下月 ›</button><span style="flex:1"></span><button class="btn" data-act="vp-mrxls">下載 Excel</button></div>' +
+    '<div style="color:var(--mute);margin:0 4px 12px;font-size:13.5px">依「完工月份」自動整理，共 ' + d.rows.length + ' 張；實際獲利＝實際入帳－營業稅－成本。點一列可開報價單。</div>' +
+    '<div style="' + grid + '">' + box('銷售額（未稅）', money(t.sales)) + box('5% 營業稅', money(t.tax)) + box('發票金額', money(t.invoiceAmt)) + box('銀行入帳', money(t.paid)) + box('成本支出', money(t.cost), t.needCost && MR.ym >= mrShift(nowYm, -1) ? '另有 ' + t.needCost + ' 張還沒填成本' : '') + box('實際獲利', money(t.profit), t.unpaidN ? '還有 ' + t.unpaidN + ' 張未收齊（' + money(t.unpaid) + '）' : '全數已收', false) + '</div>' + manual +
+    '<div style="' + grid + '">' + box('梅科銷售額', money(d.cls.C.sales), d.cls.C.n + ' 張') + box('梅科成本', money(d.cls.C.cost)) + box('梅科獲利', money(d.cls.C.profit)) + box('一般銷售額', money(d.cls.O.sales), d.cls.O.n + ' 張') + box('一般成本', money(d.cls.O.cost)) + box('一般獲利', money(d.cls.O.profit)) + '</div>' +
+    (d.rows.length ? '<div class="sc"><table class="ls nolink"><tr><th>報價單號</th><th>發票號碼</th><th>類別</th><th>公司</th><th>開發票</th><th>完工日</th><th class="num">銷售額</th><th class="num">營業稅</th><th>收款</th><th class="num">收款金額</th><th class="num">成本</th><th class="num">實際獲利</th></tr>' + rowsH + '</table></div>' : '<div class="card empty">這個月沒有已完工的案件。</div>') +
+    '<h3 style="margin:22px 0 10px;font-size:16px">銀行對帳</h3>' + bank;
+  $('#mr_ym').addEventListener('change', function () { MR = { ym: this.value, d: null }; renderMR(); });
+}
+function mrSave() {
+  var btn = $('[data-act=vp-mrsave]'); if (btn) btn.disabled = true;
+  api('monthNoteSave', { ym: MR.ym, other: $('#mr_other').value, otherNote: $('#mr_otherNote').value, draw: $('#mr_draw').value, drawNote: $('#mr_drawNote').value, note: $('#mr_note').value }).then(function (r) {
+    if (!r || !r.ok) { if (btn) btn.disabled = false; return toast(esc((r && r.msg) || '儲存失敗'), 5000); }
+    MR.d = r; toast('已儲存'); if (S.view === 'mrev') renderMR();
+  });
+}
+function mrXls() {
+  var d = MR && MR.d; if (!d) return; var t = d.top, m = d.manual, boss = d.isBoss, a = [];
+  a.push(['年月份', d.ym.replace('-', '/')]);
+  a.push(['銷售額(未稅)', t.sales, '', '銀行入帳', t.paid, '', '其他成本', m.other, m.otherNote]);
+  a.push(['5%營業稅', t.tax, '', '成本支出', t.cost, '', boss ? '領現' : '', boss ? m.draw : '', boss ? m.drawNote : '']);
+  a.push(['發票金額', t.invoiceAmt, '', '實際獲利', t.profit, '', boss ? '結算' : '', boss ? d.settle : '', '備註', m.note]);
+  a.push([]);
+  a.push(['客戶類別 : C= 梅科 O= 一般 ', '', '', 'C:梅科銷售額', d.cls.C.sales, '', 'C:成本支出', d.cls.C.cost, 'C:梅科獲利', d.cls.C.profit]);
+  a.push(['', '', '', 'O:一般銷售額', d.cls.O.sales, '', 'O:成本支出', d.cls.O.cost, 'O:一般獲利', d.cls.O.profit]);
+  a.push(['報價單編號', '發票號碼', '客戶類別', '公司名稱', '開發票', '完工日期', '銷售額', '5%營業稅', '收款', '收款金額', '成本支出', '實際獲利']);
+  d.rows.forEach(function (x) { a.push([x.no, x.inv, x.cls, x.company, x.invoiced, String(x.date).replace(/-/g, '/'), x.sales, x.tax, x.got === '✔' ? '✔' : x.got, x.paid, x.cost, x.profit == null ? '' : x.profit]); });
+  if (d.bank) {
+    a.push([]); a.push(['銀行匯出明細']); a.push(['日期', '', '備註', '', '', '金額']);
+    d.bank.outs.forEach(function (o) { a.push([o.date.replace(/-/g, '/'), '', o.memo, '', '', o.amount]); });
+    a.push([]); a.push(['銀行對帳資料']); a.push(['上月銀行金額', d.bank.prev]); a.push(['本月銀行匯出', d.bank.withdraw]); a.push(['本月銀行入帳', d.bank.deposit]); a.push(['本月銀行餘額', d.bank.balance, '', '驗算', d.bank.check]);
+  }
+  loadXLSX(function (X) {
+    if (!X) return toast('Excel 轉換元件載入失敗，請稍後再試', 5200);
+    var wb = X.utils.book_new(); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(a), ('每月營收_' + d.ym.replace('-', '')).slice(0, 31));
+    X.writeFile(wb, today().replace(/-/g, '') + ' 晨諾 每月營收 ' + d.ym.replace('-', '') + '.xlsx');
+  });
+}
+document.addEventListener('click', function (e) {
+  var t = e.target.closest('[data-act]'); if (!t) return; var a = t.dataset.act; if (a.indexOf('vp-') !== 0) return;
+  if (a === 'vp-imp') openImport(t.dataset.k); else if (a === 'vp-imppick') $('#impf').click(); else if (a === 'vp-impgo') impGo(); else if (a === 'vp-impundo') impUndo();
+  else if (a === 'vp-assign') vpAssign(); else if (a === 'vp-all') { var cs = document.querySelectorAll('#main [data-vpids]'), on = !Array.prototype.every.call(cs, function (c) { return c.checked; }); cs.forEach(function (c) { c.checked = on; }); }
+  else if (a === 'vp-top') api('vpTopupSet', { id: t.dataset.id, bank: t.dataset.b, bankDate: t.dataset.b === '已對上' ? today() : '' }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '儲存失敗')); VP = r.info; renderVP(); });
+  else if (a === 'vp-ruleadd') { var d = document.createElement('div'); d.innerHTML = vpRuleRow({ kw: '', cust: '' }, 0); $('#vp_rules').appendChild(d.firstChild); }
+  else if (a === 'vp-ruledel') t.closest('.vprule').remove();
+  else if (a === 'vp-rulesave') api('vpRuleSave', { rules: vpRulesCollect() }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '儲存失敗'), 5000); VP = r.info; toast('已儲存線索'); renderVP(); briefLoad(false); });
+  else if (a === 'vp-chaserefresh') { CH = null; renderChase(); }
+  else if (a === 'vp-popclose') { var p = $('#bfpop'); if (p) p.remove(); briefBadge(); }
+  else if (a === 'vp-popopen') briefPop();
+  else if (a === 'vp-mrgo') { MR = { ym: mrShift((MR && MR.ym) || today().slice(0, 7), Number(t.dataset.d)), d: null }; renderMR(); }
+  else if (a === 'vp-mrsave') mrSave(); else if (a === 'vp-mrxls') mrXls();
+  else if (a === 'vp-mropen') { MR = { ym: t.dataset.ym, d: null }; var pp = $('#bfpop'); if (pp) pp.remove(); briefBadge(); goView('mrev'); }
+  else if (a === 'vp-popgo') { var q = $('#bfpop'); if (q) q.remove(); briefBadge(); S.gv = S.gv || {}; (window.__groups || []).forEach(function (g) { if (g[1].some(function (x) { return x[0] === t.dataset.v; })) S.gv[g[0]] = t.dataset.v; }); S.view = t.dataset.v; E = null; if (t.dataset.v === 'chase') CH = null; render(); }
+  else if (a === 'vp-todo') api('todoDone', { key: t.dataset.k, undo: !!t.dataset.u }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '儲存失敗')); S.brief = r; if (S.view === 'todo') renderTodo(); briefBadge(); });
+});
+
+['render', 'renderTodo', 'renderEditor', 'renderVP', 'renderChase', 'renderMR', 'renderLines', 'renderTerms', 'renderQuotes', 'renderMaster', 'renderUsers', 'drawUsers', 'renderBilling', 'renderPays', 'renderDone', 'renderPack', 'drawBill'].forEach(function (n) { var f = window[n]; window[n] = function () { RENDERING++; try { return f.apply(this, arguments); } finally { RENDERING--; } }; });
 document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.id === 'lg_code') doLogin(); });
 start();
 </script>
