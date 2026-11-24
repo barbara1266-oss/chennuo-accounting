@@ -383,6 +383,7 @@ function demoApi(act, d) {
   }
   if (act === 'lockQuote') { q = db.quotes[d.no]; q.status = '已鎖定'; q.signed = true; q.agencyDate = today(); return { ok: true, quote: q }; }
   if (act === 'saveNote') { if (db.quotes[d.no]) db.quotes[d.no].note = d.note; return { ok: true, note: d.note }; }
+  if (act === 'voidOnly') { var vo = db.quotes[d.no]; if (!vo || vo.status !== '已鎖定') return { ok: false, msg: '只有報價中的單可以作廢' }; if (!String(d.reason || '').trim()) return { ok: false, msg: '請選擇作廢原因' }; vo.status = '已作廢'; vo.voidReason = d.reason; vo.signed = false; return { ok: true, voided: d.no }; }
   if (act === 'voidQuote') {
     var o = db.quotes[d.no]; if (!o || o.status !== '已鎖定') return { ok: false, msg: '只有已鎖定的報價單需要作廢' }; if (!String(d.reason || '').trim()) return { ok: false, msg: '請填寫作廢原因' };
     var base = d.no.replace(/-R\d+$/, ''), n = 0; Object.keys(db.quotes).forEach(function (k) { var m = k.match(/-R(\d+)$/); if (m && k.indexOf(base + '-R') === 0) n = Math.max(n, +m[1]); });
@@ -565,7 +566,7 @@ function msave(t) {
   api('saveRow', { table: t, row: row }).then(function (r) { if (!r.ok) return toast(esc(r.msg)); S[t] = r.rows; $('#md').remove(); render(); toast('已儲存'); });
 }
 function mdel(t) {
-  if (!confirm('確定刪除？')) return; var r = window.__mrow, key = r[CFG[t].key];
+  var r = window.__mrow, key = r[CFG[t].key]; if (!confirm('刪除這筆資料（' + key + '）？刪除後無法復原。')) return;
   api('delRow', { table: t, key: key }).then(function (x) { if (!x.ok) return toast(esc(x.msg)); S[t] = x.rows; $('#md').remove(); render(); });
 }
 
@@ -678,7 +679,7 @@ function renderEditor() {
     (S.user.role === '老闆' && E.no && E.status !== '已作廢' ? '<button class="btn" data-act="cfolder" data-no="' + esc(E.no) + '">📁 案件資料夾</button><button class="btn" data-act="costopen" data-no="' + esc(E.no) + '">💰 成本</button>' : '') +
     '<button class="btn" data-act="print">列印／另存 PDF</button>' +
     (E.no && S.user.role === '老闆' ? '<button class="btn" data-act="copycur">複製為新報價</button>' : '') + (E.pdf ? '<a class="btn" target="_blank" href="' + esc(E.pdf) + '" title="最新一份">開啟最新 PDF</a>' : '') +
-    (S.user.role === '老闆' && E.status !== '已作廢' ? (canEdit() ? '<button class="btn" data-act="save">儲存</button><button class="btn pri" data-act="savepdf" title="先存檔，再另存一份新的 PDF 到雲端硬碟（依月份資料夾，舊的不會被蓋掉）">產生 PDF</button>' : '<button class="btn dark" data-act="pdf" title="另存一份新的 PDF 到雲端硬碟（舊的不會被蓋掉）">產生 PDF</button>') + (E.status === '已鎖定' && !E.frozen ? '<button class="btn" data-act="void">作廢並重開</button>' : '') + (E.status === '草稿' && E.no && !(E.total > 0) ? '<button class="btn" data-act="discard" title="不需要這張報價單時使用；對應的案件資料夾不會再被系統偵測">捨棄草稿</button>' : '') : '') + '</div></div>' + stepperHTML() + frozenNoteHTML() + giftBannerHTML() +
+    (S.user.role === '老闆' && E.status !== '已作廢' ? (canEdit() ? '<button class="btn" data-act="save">儲存</button><button class="btn pri" data-act="savepdf" title="先存檔，再另存一份新的 PDF 到雲端硬碟（依月份資料夾，舊的不會被蓋掉）">產生 PDF</button>' : '<button class="btn dark" data-act="pdf" title="另存一份新的 PDF 到雲端硬碟（舊的不會被蓋掉）">產生 PDF</button>') + (E.status === '已鎖定' && !E.frozen ? '<button class="btn" data-act="void" title="客戶不要這張時使用；單子會留在「已作廢」裡查得到，不會開新單">作廢這張</button>' : '') + (E.status === '草稿' && E.no && !(E.total > 0) ? '<button class="btn" data-act="discard" title="不需要這張報價單時使用；對應的案件資料夾不會再被系統偵測">捨棄草稿</button>' : '') : '') + '</div></div>' + stepperHTML() + frozenNoteHTML() + giftBannerHTML() +
     ((E.replaces || E.voidReason || E.imported || E.invNo || (canEdit() && E._orig != null && E._orig !== '')) ? '<div class="card" id="info" style="padding:12px 18px;margin-bottom:14px;font-size:14px;color:var(--mute)">' + (E.imported ? 'Ragic 匯入舊單（原編號 ' + esc(E.ragicNo) + '），金額照原值保留　' : '') + (E.replaces ? '這張是重開單，取代 <b>' + esc(E.replaces) + '</b>　' : '') + (E.voidReason ? '已作廢，原因：' + esc(E.voidReason) + '　' : '') + (E.invNo ? '發票 ' + esc(E.invNo) + (E.invDate ? '（' + esc(E.invDate.replace(/-/g, '/')) + '）' : '') + '　' : '') + '<span id="recalc"></span></div>' : '') +
     '<div class="ed"><div><fieldset ' + (locked ? 'disabled' : '') + ' style="border:0;margin:0;padding:0;min-width:0">' +
     '<div class="card sec"><h3>基本資料' + (locked ? '' : '<button class="btn sm" data-act="copyprev" type="button">複製這位客戶的上一張</button>') + '</h3><div class="grid2"><div><label class="f">客戶</label><select class="in" id="f_cust">' + custOpts + '</select></div><div><label class="f">案型</label><select class="in" id="f_kind">' + kindOpts + '</select></div>' +
@@ -759,18 +760,20 @@ function doPdf() {
 
 function openVoid() {
   var d = document.createElement('div');
-  d.innerHTML = '<div class="modal" id="md"><div class="mbox"><h3>作廢並重開 ' + esc(E.no) + '</h3><div style="color:var(--mute);font-size:13.5px">原單會標示「已作廢」並保留紀錄，系統另開一張內容相同的新報價單（編號 ' + esc(String(E.no).replace(/-R\d+$/, '')) + '-R…），可以直接再修改。</div>' +
-    '<div class="fld" style="margin-top:14px"><label class="f">作廢原因（必填）</label><textarea class="in" id="v_reason" rows="3" placeholder="例如：客戶追加數量、單價調整"></textarea></div>' +
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button class="btn" data-act="mclose">取消</button><button class="btn pri" data-act="vsave">確認作廢並開新單</button></div></div></div>';
+  d.innerHTML = '<div class="modal" id="md"><div class="mbox" style="position:relative"><button type="button" aria-label="關閉" data-act="mclose" style="position:absolute;top:10px;right:14px;border:0;background:rgba(0,0,0,.06);width:34px;height:34px;border-radius:50%;font-size:18px;line-height:34px;cursor:pointer;color:#555">✕</button><h3>作廢 ' + esc(E.no) + '</h3><div style="color:var(--mute);font-size:13.5px">這張會標示「已作廢」並留下紀錄，在列表的「已作廢」分類查得到；<b>不會開新的報價單</b>。</div>' +
+    '<div class="fld" style="margin-top:14px"><label class="f">原因</label><select class="in" id="v_reason"><option value="">請選擇</option><option>客戶不要</option><option>價格不合</option><option>延後，之後另報</option><option>報錯了</option><option>其他</option></select></div>' +
+    '<div class="fld" style="margin-top:10px"><label class="f">補充（選填）</label><input class="in" id="v_note" placeholder="例如：客戶說預算有調整"></div>' +
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button class="btn" data-act="mclose">先不要</button><button class="btn pri" data-act="vsave">確認作廢</button></div></div></div>';
   document.body.appendChild(d.firstChild);
 }
 function vsave() {
-  var reason = $('#v_reason').value.trim(); if (!reason) return toast('請填寫作廢原因');
+  var r0 = $('#v_reason').value.trim(); if (!r0) return toast('請選擇作廢原因');
+  var nt = ($('#v_note').value || '').trim(), reason = r0 + (nt ? '：' + nt : '');
   var btn = $('[data-act=vsave]'); btn.disabled = true; var old = E.no;
-  api('voidQuote', { no: E.no, reason: reason }).then(function (r) {
-    if (!r || !r.ok) { btn.disabled = false; return toast(esc((r && r.msg) || '作廢失敗')); }
-    $('#md').remove(); E = r.quote; E._orig = E.total; E.terms = (E.terms || []).map(function (t) { t.on = !t.off; return t; }); E.bank = S.settings.bank;
-    api('boot').then(function (b) { if (b.ok) S.quotes = b.quotes; }); render(); toast(esc(old) + ' 已作廢，已開新單 ' + esc(E.no), 4000);
+  api('voidOnly', { no: E.no, reason: reason }).then(function (r) {
+    if (!r || !r.ok) { btn.disabled = false; return toast(esc((r && r.msg) || '作廢失敗'), 4800); }
+    $('#md').remove(); E = null;
+    api('boot').then(function (b) { if (b && b.ok) S.quotes = b.quotes; E = null; render(); toast(esc(old) + ' 已作廢（' + esc(r0) + '）', 4000); });
   });
 }
 
@@ -962,7 +965,7 @@ function openCreditModal() {
   mopen('<h3>折讓／讓價 ' + esc(E.no) + '</h3><div style="color:var(--mute);font-size:13.5px;margin-bottom:12px">' + (inv ? '這張已開發票，會以「折讓」處理（金額含稅，系統自動拆稅額）。' : '這張未開發票或免開，會以「讓價」處理（直接降低應收）。') + '</div>' +
     '<div class="grid2"><div class="fld"><label class="f">金額（含稅）</label><input class="in" id="c_amt" type="number" step="any"></div><div class="fld"><label class="f">日期</label><input class="in" id="c_date" type="date" value="' + today() + '"></div></div>' +
     '<div class="fld"><label class="f">原因（必填）</label><input class="in" id="c_reason"></div><div class="fld"><label class="f">折讓證明單號（選填）</label><input class="in" id="c_cert"></div>' +
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px"><button class="btn" data-act="mclose">取消</button><button class="btn pri" data-act="crsave">確認</button></div>');
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px"><button class="btn" data-act="mclose">取消</button><button class="btn pri" data-act="crsave">儲存折讓</button></div>');
 }
 function creditSave() {
   var amt = Number($('#c_amt').value), reason = $('#c_reason').value.trim(); if (!(amt > 0)) return toast('請填寫金額'); if (!reason) return toast('請填寫原因');
@@ -1789,7 +1792,7 @@ function scanDraw() {
   if (p.unmatched.length) {
     var co = S.customers.filter(function (c) { return c['類型'] !== '梅科'; }).sort(function (a, b) { return String(a['公司']).localeCompare(String(b['公司'])); }).map(function (c) { return '<option value="' + esc(c['客戶編號']) + '">' + esc(c['公司']) + '</option>'; }).join('');
     h += '<div class="card" style="margin-bottom:14px"><b>這些客戶資料夾對不到客戶（指定一次，之後同名會自動帶入）</b>' + p.unmatched.map(function (u) {
-      return '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0"><div style="flex:1;min-width:180px"><b>' + esc(u.parent) + '</b><div style="color:var(--mute);font-size:12.5px">' + u.count + ' 個案件資料夾，例：' + esc((u.names || []).join('、')) + '</div></div><select class="in" id="sa_' + esc(u.parentId) + '" style="max-width:240px"><option value="">— 選客戶 —</option>' + co + '<option value="skip">這個資料夾不用開單</option></select><button class="btn" data-act="scanalias" data-p="' + esc(u.parentId) + '">確定</button></div>';
+      return '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0"><div style="flex:1;min-width:180px"><b>' + esc(u.parent) + '</b><div style="color:var(--mute);font-size:12.5px">' + u.count + ' 個案件資料夾，例：' + esc((u.names || []).join('、')) + '</div></div><select class="in" id="sa_' + esc(u.parentId) + '" style="max-width:240px"><option value="">— 選客戶 —</option>' + co + '<option value="skip">這個資料夾不用開單</option></select><button class="btn" data-act="scanalias" data-p="' + esc(u.parentId) + '">指定客戶</button></div>';
     }).join('') + '</div>';
   }
   if (p.items.length) {
@@ -1808,7 +1811,7 @@ function scanDraw() {
       h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0"><div style="flex:1;min-width:200px"><a href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.name) + '</a></div><select class="in sc-op" data-id="' + esc(it.id) + '" data-cust="' + esc(it.cust) + '" data-name="' + esc(it.name) + '" style="max-width:300px"><option value="merge"' + (!pick && cnt[it.cust] >= 2 ? ' selected' : '') + '>合併成一張（同客戶）</option><option value="draft"' + (!pick && !(cnt[it.cust] >= 2) ? ' selected' : '') + '>單獨開草稿</option><option value="skip">略過（不用開單）</option>' +
         qs.map(function (r) { var v = 'bind:' + r['報價單號']; return '<option value="' + esc(v) + '"' + (v === pick ? ' selected' : '') + '>已有報價單：' + esc(r['報價單號']) + ' ' + esc(String(r['專案名稱'] || '').slice(0, 14)) + '</option>'; }).join('') + '</select></div>';
     });
-    h += '<div id="scmsg" style="margin-top:10px"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn pri" data-act="scango">套用</button></div>';
+    h += '<div id="scmsg" style="margin-top:10px"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn pri" data-act="scango">照以上選擇處理</button></div>';
   } else if (!p.unmatched.length) h += '<div class="empty">目前沒有待處理的案件資料夾 ✓</div>';
   body.innerHTML = h;
 }
@@ -2259,7 +2262,7 @@ function v3VC() {
       if (S.view !== 'vc') return; if (!r || !r.ok) return v3Fail(r); V3.rows = r.rows; if (!V3.vcm && V3.vcm !== '') V3.vcm = '';
       var tr = r.rows.map(function (v) { return '<div class="trow" data-v3="vopen" data-no="' + esc(v['傳票號碼']) + '"><div class="l"><b>' + esc(v['傳票號碼']) + '　' + esc(v['摘要']) + '</b><span>' + esc(String(v['日期'])) + '　' + esc(v['種類']) + (v['來源類型'] && v['來源類型'] !== '匯入' ? '　來源 ' + esc(v['來源類型']) : '') + '</span></div><div class="r">' + money(v['借方合計']) + ' ' + v3St(v['狀態']) + '</div></div>'; }).join('') || '<div class="empty">沒有符合的傳票</div>';
       $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">傳票</h2>' + v3Mon(r.months, V3.vcm, 'v3vm', true) + '<select class="in" id="v3vs" style="max-width:140px"><option value="">全部狀態</option>' + ['草稿', '已入帳', '作廢'].map(function (s) { return '<option' + (s === V3.vcs ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select><input class="in" id="v3vq" placeholder="搜尋號碼、摘要" value="' + esc(V3.vcq) + '"><div style="flex:1"></div><button class="btn pri" data-v3="vnew">＋ 新增傳票</button></div>' +
-        '<div style="color:var(--mute);font-size:13px;margin:0 0 8px">草稿 ' + r.count.draft + '｜已入帳 ' + r.count.posted + '｜作廢 ' + r.count.voided + '。傳票只能作廢、不能刪除；已入帳的要改請作廢後重開。</div><div class="card" style="padding:6px 14px">' + tr + (r.more ? '<div class="empty">只顯示最新 600 張，請用月份縮小範圍</div>' : '') + '</div>';
+        '<div style="color:var(--mute);font-size:13px;margin:0 0 8px">草稿 ' + r.count.draft + '｜已入帳 ' + r.count.posted + '｜作廢 ' + r.count.voided + '。傳票只能作廢、不能刪除；已入帳的傳票要修改，請作廢後再開一張新的。</div><div class="card" style="padding:6px 14px">' + tr + (r.more ? '<div class="empty">只顯示最新 600 張，請用月份縮小範圍</div>' : '') + '</div>';
     });
   });
 }
