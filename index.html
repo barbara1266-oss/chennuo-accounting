@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>晨諾創意 內帳系統</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%23FFC928'/><text x='32' y='44' font-size='34' font-weight='700' text-anchor='middle' fill='%232B2118' font-family='sans-serif'>晨</text></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%23FFC928'/><text x='32' y='44' font-size='34' font-weight='700' text-anchor='middle' fill='%232B2118' font-family='sans-serif'>晨</text></svg>">
+
 <style>
 :root{--bg:#f6f3ee;--card:#fff;--ink:#33312e;--mute:#8d8880;--line:#e9e4db;--gold:#f2b800;--gold2:#ffd34d;--deep:#4a4742;--ok:#3f9b6b;--warn:#c98a00;--r:18px;--sh:0 6px 24px rgba(60,50,30,.08)}
 *{box-sizing:border-box}
@@ -457,12 +460,14 @@ function render() {
     ['一般業務', [['quotesG', '一般報價單'], ['customersG', '客戶資料'], ['itemsG', '收費明細'], ['termsG', '一般注意事項']]],
     ['梅科專區', [['quotesM', '梅科報價單'], ['branches', '分院紀錄'], ['customersM', '梅科旗下'], ['itemsM', '梅科收費明細'], ['termsM', '梅科注意事項']]],
     ['請款／財務', [['done', '完工彙總'], ['pays', '收款'], ['pack', '梅科請款'], ['billing', '一般請款'], ['vprepaid', '預付廠商'], ['chase', '追款清單'], ['mrev', '月營收表']]],
-    ['設定', [['vendors', '廠商'], ['users', '人員'], ['ragic', '同步 Ragic']]]
+    ['傳票帳務', [['vc', '傳票'], ['vcp', '待登與核對'], ['bk', '銀行明細'], ['led', '分類帳科目總表'], ['dep', '訂金管理'], ['apv', '應付帳款'], ['acc', '會計科目'], ['emp', '員工資料']]],
+    ['設定', [['vendors', '廠商'], ['users', '人員']]]
   ] : [
     ['待辦', [['todo', '待辦']]],
-    ['請款／財務', [['quotesG', '一般報價單'], ['quotesM', '梅科報價單'], ['pays', '收款'], ['billing', '一般請款'], ['pack', '梅科請款'], ['vprepaid', '預付廠商'], ['chase', '追款清單'], ['mrev', '月營收表']]]
+    ['請款／財務', [['quotesG', '一般報價單'], ['quotesM', '梅科報價單'], ['pays', '收款'], ['billing', '一般請款'], ['pack', '梅科請款'], ['vprepaid', '預付廠商'], ['chase', '追款清單'], ['mrev', '月營收表']]],
+    ['傳票帳務', [['vc', '傳票'], ['vcp', '待登與核對'], ['bk', '銀行明細'], ['led', '分類帳科目總表'], ['dep', '訂金管理'], ['apv', '應付帳款'], ['acc', '會計科目'], ['emp', '員工資料']]]
   ];
-  var ICON = { '待辦': '🔔', '一般業務': '📄', '梅科專區': '🏥', '請款／財務': '💰', '設定': '⚙️' };
+  var ICON = { '待辦': '🔔', '一般業務': '📄', '梅科專區': '🏥', '請款／財務': '💰', '設定': '⚙️', '傳票帳務': '📒' };
   var gi = -1; groups.forEach(function (g, i) { if (g[1].some(function (t) { return t[0] === S.view; })) gi = i; });
   if (gi < 0) { gi = 0; S.view = groups[0][1][0][0]; }
   var zoneM = ['quotesM', 'branches', 'customersM', 'itemsM', 'termsM', 'pack'].indexOf(S.view) >= 0, zoneG = ['quotesG', 'customersG', 'itemsG', 'termsG', 'billing'].indexOf(S.view) >= 0;
@@ -474,7 +479,7 @@ function render() {
     '</div><div class="who navwho">' + who + '</div></nav><div class="content"><div class="mtop"><div class="brand sm"><b>Sincerity</b><i>晨諾創意</i></div><div class="who">' + who + '</div></div>' +
     (groups[gi][1].length > 1 ? '<div class="subin">' + zt + groups[gi][1].map(function (t) { return '<button class="tab sub' + (S.view === t[0] && !E ? ' on' : '') + '" data-act="tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' : '') + '<main id="main"></main></div></div>';
   window.__groups = groups;
-  E ? renderEditor() : (S.view === 'todo' ? renderTodo() : S.view === 'quotesG' || S.view === 'quotesM' ? renderQuotes() : S.view === 'customersG' ? renderMaster('customers', 'G') : S.view === 'customersM' ? renderMaster('customers', 'M') : S.view === 'itemsG' ? renderMaster('items', 'G') : S.view === 'itemsM' ? renderMaster('items', 'M') : S.view === 'users' ? renderUsers() : S.view === 'ragic' ? renderRagic() : S.view === 'billing' ? renderBilling() : S.view === 'pays' ? renderPays() : S.view === 'done' ? renderDone() : S.view === 'pack' ? renderPack() : S.view === 'vprepaid' ? renderVP() : S.view === 'chase' ? renderChase() : S.view === 'mrev' ? renderMR() : S.view === 'termsG' ? renderMaster('terms', 'G') : S.view === 'termsM' ? renderMaster('terms', 'M') : renderMaster(S.view));
+  E ? renderEditor() : (S.view === 'todo' ? renderTodo() : S.view === 'quotesG' || S.view === 'quotesM' ? renderQuotes() : S.view === 'customersG' ? renderMaster('customers', 'G') : S.view === 'customersM' ? renderMaster('customers', 'M') : S.view === 'itemsG' ? renderMaster('items', 'G') : S.view === 'itemsM' ? renderMaster('items', 'M') : S.view === 'users' ? renderUsers() : S.view === 'ragic' ? renderRagic() : S.view === 'billing' ? renderBilling() : S.view === 'pays' ? renderPays() : S.view === 'done' ? renderDone() : S.view === 'pack' ? renderPack() : S.view === 'vprepaid' ? renderVP() : S.view === 'chase' ? renderChase() : S.view === 'mrev' ? renderMR() : S.view === 'termsG' ? renderMaster('terms', 'G') : S.view === 'termsM' ? renderMaster('terms', 'M') : V3VIEWS[S.view] ? V3VIEWS[S.view]() : renderMaster(S.view));
   navSync();
 }
 
@@ -1325,7 +1330,7 @@ function fzMake(no, M) {
 /* ---- 完工彙總（老闆） ---- */
 function renderDone() {
   S.dq = S.dq || ''; S.dp = S.dp || '全部';
-  $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">完工彙總</h2><input class="in" id="dq" placeholder="搜尋單號、客戶、發票號碼" value="' + esc(S.dq) + '"><div class="chips">' + ['全部', '未收', '已收', '待補成本', '成本待確認'].map(function (c) { return '<button class="chip' + (S.dp === c ? ' on' : '') + '" data-act="dpf" data-v="' + c + '">' + c + '</button>'; }).join('') + '</div><div style="flex:1"></div><button class="btn" data-act="costimp">📥 匯入 Ragic 成本</button></div><div id="done"><div class="card empty"><span class="spin"></span>載入中…</div></div>';
+  $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">完工彙總</h2><input class="in" id="dq" placeholder="搜尋單號、客戶、發票號碼" value="' + esc(S.dq) + '"><div class="chips">' + ['全部', '未收', '已收', '待補成本', '成本待確認'].map(function (c) { return '<button class="chip' + (S.dp === c ? ' on' : '') + '" data-act="dpf" data-v="' + c + '">' + c + '</button>'; }).join('') + '</div><div style="flex:1"></div></div><div id="done"><div class="card empty"><span class="spin"></span>載入中…</div></div>';
   var dq = $('#dq'); dq.addEventListener('input', function () { S.dq = dq.value; var p = dq.selectionStart; debounce(function () { if (S.view !== 'done') return; drawDone(); }, 200); });
   api('doneSummary', { ym: '' }).then(function (r) {
     var el = $('#done'); if (!el) return; if (!r.ok) return el.innerHTML = '<div class="card empty">' + esc(r.msg) + '</div>';
@@ -2056,7 +2061,7 @@ function renderChase() {
   function tbl(rows, right) { return rows.length ? rows.map(function (x) { return '<div class="trow" data-act="open" data-no="' + esc(x.no) + '"><div class="l"><b>' + esc(x.company) + '</b><span>' + esc(x.no) + '　' + esc(x.project) + '</span><span>' + (x.inv ? '發票 ' + esc(x.inv) + '；' : '') + '起算 ' + esc(x.base || '—') + '</span></div><div class="r">' + right(x) + '</div></div>'; }).join('') : '<div class="empty" style="padding:6px 0">沒有 ✓</div>'; }
   function bucket(title, rows) { var t = rows.reduce(function (s, x) { return s + x.recv - x.paid; }, 0); return '<div class="card"><div class="tdh"><h3>' + title + '</h3>' + pill(rows.length + ' 張／' + money(r2(t)), rows.length ? 'p-bad' : 'p-ok') + '</div>' + tbl(rows, function (x) { return money(r2(x.recv - x.paid)) + ' ' + pill(x.days + ' 天', 'p-warn'); }) + '</div>'; }
   var inv = c.invoice, iN = inv.groups + inv.zero + inv.calc + inv.over;
-  $('#main').innerHTML = '<h2 style="margin:0 0 4px;font-size:20px">追款清單</h2><div style="color:var(--mute);margin-bottom:14px">截至 ' + esc(c.today) + '；天數從發票日起算（沒有發票就用完工日、報價日）。點一筆可直接開啟處理。<button class="btn sm" data-act="vp-chaserefresh" style="margin-left:8px">重新整理</button></div><div class="tdgrid" style="grid-template-columns:1fr">' +
+  $('#main').innerHTML = '<h2 style="margin:0 0 4px;font-size:20px">追款清單</h2><div style="color:var(--mute);margin-bottom:14px">截至 ' + esc(c.today) + '；天數從發票日起算（沒有發票就用完工日、報價日）。點一筆可直接開啟處理。<button class="btn sm" data-act="vp-chaserefresh" style="margin-left:8px">重新整理</button></div>' + (c.legacy ? '<div style="color:var(--mute);font-size:13px;margin:-6px 0 12px">另有 ' + c.legacy + ' 張 ' + esc(c.baseline || '') + ' 之前、還沒有任何收款的舊報價單，不列入追款提醒（資料都還在）。</div>' : '') + '<div class="tdgrid" style="grid-template-columns:1fr">' +
     bucket('超過 90 天未收', b(90, 99999)) + bucket('60～89 天未收', b(60, 90)) + bucket('30～59 天未收', b(30, 60)) +
     '<div class="card"><div class="tdh"><h3>金額不符</h3>' + pill(c.mismatch.length + ' 張', c.mismatch.length ? 'p-bad' : 'p-ok') + '</div>' + tbl(c.mismatch, function (x) { return pill(x.why, 'p-bad') + '<span style="margin-left:6px">應收 ' + money(x.recv) + '／已收 ' + money(x.paid) + (x.inv && x.invAmt !== '' && x.invAmt != null ? '／發票 ' + money(x.invAmt) : '') + '</span>'; }) + '</div>' +
     '<div class="card"><div class="tdh"><h3>發票問題</h3>' + pill(iN + ' 項', iN ? 'p-bad' : 'p-ok') + '</div><div style="color:var(--mute);font-size:13.5px">同號掛多張單 ' + inv.groups + '；總額 0 卻有收款 ' + inv.zero + '；算式不符 ' + inv.calc + '；收款多於應收 ' + inv.over + '。詳細清單在「待辦」的發票與金額對帳異常卡。<br>平台已作廢但系統仍有效、號碼對得上但金額不同，會在「匯入電子發票」的預覽裡直接標出（⚠）。</div>' + (iN ? '<div style="margin-top:8px"><button class="btn" data-act="tab" data-v="todo">到待辦處理</button></div>' : '') + '</div></div>';
@@ -2181,6 +2186,257 @@ document.addEventListener('click', function (e) {
 
 ['render', 'renderTodo', 'renderEditor', 'renderVP', 'renderChase', 'renderMR', 'renderLines', 'renderTerms', 'renderQuotes', 'renderMaster', 'renderUsers', 'drawUsers', 'renderBilling', 'renderPays', 'renderDone', 'renderPack', 'drawBill'].forEach(function (n) { var f = window[n]; window[n] = function () { RENDERING++; try { return f.apply(this, arguments); } finally { RENDERING--; } }; });
 document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.id === 'lg_code') doLogin(); });
+
+/* =====================================================================
+ * V3：傳票帳務（傳票、待登與核對、銀行明細、分類帳科目總表、訂金管理、應付帳款、會計科目、員工資料）
+ * ===================================================================== */
+var V3 = { info: null, vcm: '', vcs: '', vcq: '', bkm: '', apq: '', aps: '', acq: '', F: null, rows: [], ledQ: null };
+var V3VIEWS = { vc: function () { v3VC(); }, vcp: function () { v3VCP(); }, bk: function () { v3BK(); }, led: function () { v3LED(); }, dep: function () { v3DEP(); }, apv: function () { v3AP(); }, acc: function () { v3ACC(); }, emp: function () { v3EMP(); } };
+function v3Load(v) { $('#main').innerHTML = '<div class="card empty"><span class="spin"></span>讀取中…</div>'; }
+function v3Fail(r) { $('#main').innerHTML = '<div class="card empty">讀取失敗：' + esc((r && r.msg) || '') + '</div>'; }
+function v3Info(cb) { if (V3.info) return cb(); api('vcInfo').then(function (r) { if (r && r.ok) { V3.info = r; cb(); } else v3Fail(r); }); }
+function v3Mon(ms, cur, id, all) { return '<select class="in" id="' + id + '" style="max-width:160px">' + (all ? '<option value="">全部月份</option>' : '') + ms.map(function (m) { return '<option' + (m === cur ? ' selected' : '') + '>' + m + '</option>'; }).join('') + '</select>'; }
+function v3St(s) { return pill(s, s === '已入帳' ? 'p-ok' : s === '草稿' ? 'p-warn' : 'p-mute'); }
+function v3Ac(no) { var a = (V3.info.accounts || []).filter(function (x) { return x.no === String(no); })[0]; return a ? a.name : ''; }
+function v3Acl() { return '<datalist id="v3acl">' + V3.info.accounts.filter(function (a) { return a.use; }).map(function (a) { return '<option value="' + a.no + ' ' + esc(a.name) + '">'; }).join('') + '</datalist>'; }
+function v3Num(x) { var n = Number(String(x == null ? '' : x).replace(/[,\s]/g, '')); return isFinite(n) ? n : 0; }
+function v3Done(msg) { V3.pend = null; if (msg) toast(msg); var d = $('#md'); if (d) d.remove(); render(); }
+function v3Err(r) { toast(esc((r && r.msg) || '失敗，請稍後再試'), 5200); }
+function v3Row(l, r) { return '<div class="trow" style="cursor:default"><div class="l">' + l + '</div><div class="r">' + (r || '') + '</div></div>'; }
+
+/* ---------- 傳票表單 ---------- */
+function v3OpenForm(p) {
+  p = p || {}; V3.F = { no: p.no || '', date: p.date || today(), kind: p.kind || '轉帳', memo: p.memo || '', note: p.note || '', srcType: p.srcType || '', srcKey: p.srcKey || '', confirmDup: false, msg: p.hint || '', lines: (p.lines && p.lines.length ? p.lines : [{ acct: '', memo: '', dr: 0, cr: 0 }, { acct: '', memo: '', dr: 0, cr: 0 }]).map(function (l) { return { acct: l.acct || '', memo: l.memo || '', dr: l.dr || 0, cr: l.cr || 0 }; }) };
+  v3FormDraw();
+}
+function v3FormDraw() {
+  var F = V3.F, old = $('#md'); if (old) old.remove();
+  var rows = F.lines.map(function (l, i) { return '<tr><td style="min-width:200px"><input class="in v3i" list="v3acl" data-i="' + i + '" data-k="acct" value="' + esc(l.acct ? l.acct + ' ' + v3Ac(l.acct) : '') + '" placeholder="打科目編號或名稱"></td><td><input class="in v3i" data-i="' + i + '" data-k="memo" value="' + esc(l.memo) + '" placeholder="摘要（可空白）"></td><td><input class="in v3i" inputmode="decimal" style="width:110px;text-align:right" data-i="' + i + '" data-k="dr" value="' + (l.dr || '') + '"></td><td><input class="in v3i" inputmode="decimal" style="width:110px;text-align:right" data-i="' + i + '" data-k="cr" value="' + (l.cr || '') + '"></td><td><button class="btn sm ghost" data-v3="lrm" data-i="' + i + '">✕</button></td></tr>'; }).join('');
+  var self = F.srcType === '自編';
+  mopen('<div style="width:min(860px,94vw)"><h3 style="margin-top:0">' + (F.no ? '編輯草稿 ' + esc(F.no) : '新增傳票') + '</h3>' + v3Acl() +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap"><div><label class="f">日期</label><input class="in v3h" type="date" data-k="date" value="' + esc(F.date) + '" max="' + today() + '"></div><div><label class="f">種類</label><select class="in v3h" data-k="kind">' + V3.info.kinds.map(function (k) { return '<option' + (k === F.kind ? ' selected' : '') + '>' + k + '</option>'; }).join('') + '</select></div><div style="flex:1;min-width:220px"><label class="f">摘要</label><input class="in v3h" data-k="memo" value="' + esc(F.memo) + '" placeholder="例：AB12345678 客戶名稱"></div></div>' +
+    (F.srcType && !self ? '<div style="margin:8px 0;color:var(--mute);font-size:13px">來源：' + esc(F.srcType) + ' ' + esc(F.srcKey) + '（同一筆來源只能開一張傳票）</div>' : '') +
+    (!F.srcType || self ? '<label style="display:flex;gap:8px;align-items:center;margin:10px 0;font-size:13.5px"><input type="checkbox" id="v3self"' + (self ? ' checked' : '') + '> 這是沒有報價單的收入（系統會自動編「自編單號」）</label>' : '') +
+    (F.msg ? '<div class="card" style="background:#fff8e6;margin:8px 0;padding:10px 12px;font-size:13.5px">' + esc(F.msg) + '</div>' : '') +
+    '<div style="overflow:auto"><table class="tb" style="width:100%;margin-top:8px"><thead><tr><th>會計科目</th><th>摘要</th><th>借方</th><th>貸方</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><button class="btn sm" data-v3="ladd">＋ 加一列</button><div id="v3tot" style="font-size:14px"></div></div>' +
+    '<label class="f" style="margin-top:10px">備註（選填）</label><input class="in v3h" data-k="note" value="' + esc(F.note) + '">' +
+    (F.dup ? '<label style="display:flex;gap:8px;align-items:center;margin-top:10px;color:var(--bad)"><input type="checkbox" id="v3dup"> 確認這張不是重複的</label>' : '') +
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn" data-act="mclose">取消</button><button class="btn" data-v3="fsave" data-p="">存成草稿</button><button class="btn pri" data-v3="fsave" data-p="1">存檔並入帳</button></div></div>');
+  v3Tot();
+}
+function v3Tot() { var F = V3.F, d = 0, c = 0; F.lines.forEach(function (l) { d += v3Num(l.dr); c += v3Num(l.cr); }); d = Math.round(d * 100) / 100; c = Math.round(c * 100) / 100; var el = $('#v3tot'); if (el) el.innerHTML = '借方 <b>' + money(d) + '</b>　貸方 <b>' + money(c) + '</b>　' + (Math.abs(d - c) < 0.005 && d > 0 ? pill('借貸平衡', 'p-ok') : pill('差 ' + money(Math.round((d - c) * 100) / 100), 'p-bad')); }
+function v3FormSave(post) {
+  var F = V3.F, self = $('#v3self'), dup = $('#v3dup');
+  if (self) { F.srcType = self.checked ? '自編' : (F.srcType === '自編' ? '' : F.srcType); if (F.srcType !== '自編' && !self.checked && F.srcKey && /^ZB/.test(F.srcKey)) F.srcKey = ''; }
+  var v = { no: F.no, date: F.date, kind: F.kind, memo: F.memo, note: F.note, srcType: F.srcType, srcKey: F.srcKey, confirmDup: !!(dup && dup.checked), lines: F.lines.map(function (l) { return { acct: l.acct, memo: l.memo, dr: v3Num(l.dr), cr: v3Num(l.cr) }; }) };
+  var btns = document.querySelectorAll('#md [data-v3=fsave]'); btns.forEach(function (b) { b.disabled = true; });
+  api('vcSave', { voucher: v, post: !!post }).then(function (r) {
+    if (r && r.ok) return v3Done((post ? '已入帳：' : '草稿已存：') + r.voucher['傳票號碼']);
+    btns.forEach(function (b) { b.disabled = false; });
+    if (r && r.code === 'DUP') { F.dup = true; F.msg = r.msg; v3FormDraw(); return; }
+    v3Err(r);
+  });
+}
+function v3Detail(no) {
+  var v = V3.rows.filter(function (x) { return x['傳票號碼'] === no; })[0]; if (!v) return;
+  var tr = v.lines.map(function (l) { return '<tr><td>' + esc(l.acct) + ' ' + esc(v3Ac(l.acct)) + '</td><td>' + esc(l.memo) + '</td><td style="text-align:right">' + (l.dr ? money(l.dr) : '') + '</td><td style="text-align:right">' + (l.cr ? money(l.cr) : '') + '</td></tr>'; }).join('');
+  mopen('<div style="width:min(760px,94vw)"><h3 style="margin-top:0">傳票 ' + esc(no) + ' ' + v3St(v['狀態']) + '</h3><div style="color:var(--mute);font-size:13.5px;margin-bottom:8px">' + esc(String(v['日期'])) + '｜' + esc(v['種類']) + '｜' + esc(v['摘要']) + (v['來源類型'] && v['來源類型'] !== '匯入' ? '｜來源：' + esc(v['來源類型']) + ' ' + esc(v['來源鍵']) : '') + (v['來源類型'] === '匯入' ? '｜歷史匯入' : '') + '</div>' + v3Acl() +
+    '<table class="tb" style="width:100%"><thead><tr><th>會計科目</th><th>摘要</th><th>借方</th><th>貸方</th></tr></thead><tbody>' + tr + '</tbody></table>' +
+    (v['狀態'] === '作廢' ? '<div style="margin-top:10px;color:var(--bad)">作廢原因：' + esc(v['作廢原因']) + '（' + esc(v['作廢人']) + '）</div>' : '') +
+    '<div id="v3vmsg" style="margin-top:12px"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn" data-act="mclose">關閉</button>' +
+    (v['狀態'] === '草稿' ? '<button class="btn" data-v3="vedit" data-no="' + esc(no) + '">編輯</button><button class="btn pri" data-v3="vpost" data-no="' + esc(no) + '">入帳</button>' : '') +
+    (v['狀態'] !== '作廢' ? '<button class="btn" data-v3="vvoid" data-no="' + esc(no) + '">作廢…</button>' : '') + '</div></div>');
+}
+
+/* ---------- 傳票列表 ---------- */
+function v3VC() {
+  v3Info(function () {
+    v3Load(); api('vcList', { ym: V3.vcm, status: V3.vcs, q: V3.vcq }).then(function (r) {
+      if (S.view !== 'vc') return; if (!r || !r.ok) return v3Fail(r); V3.rows = r.rows; if (!V3.vcm && V3.vcm !== '') V3.vcm = '';
+      var tr = r.rows.map(function (v) { return '<div class="trow" data-v3="vopen" data-no="' + esc(v['傳票號碼']) + '"><div class="l"><b>' + esc(v['傳票號碼']) + '　' + esc(v['摘要']) + '</b><span>' + esc(String(v['日期'])) + '　' + esc(v['種類']) + (v['來源類型'] && v['來源類型'] !== '匯入' ? '　來源 ' + esc(v['來源類型']) : '') + '</span></div><div class="r">' + money(v['借方合計']) + ' ' + v3St(v['狀態']) + '</div></div>'; }).join('') || '<div class="empty">沒有符合的傳票</div>';
+      $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">傳票</h2>' + v3Mon(r.months, V3.vcm, 'v3vm', true) + '<select class="in" id="v3vs" style="max-width:140px"><option value="">全部狀態</option>' + ['草稿', '已入帳', '作廢'].map(function (s) { return '<option' + (s === V3.vcs ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select><input class="in" id="v3vq" placeholder="搜尋號碼、摘要" value="' + esc(V3.vcq) + '"><div style="flex:1"></div><button class="btn pri" data-v3="vnew">＋ 新增傳票</button></div>' +
+        '<div style="color:var(--mute);font-size:13px;margin:0 0 8px">草稿 ' + r.count.draft + '｜已入帳 ' + r.count.posted + '｜作廢 ' + r.count.voided + '。傳票只能作廢、不能刪除；已入帳的要改請作廢後重開。</div><div class="card" style="padding:6px 14px">' + tr + (r.more ? '<div class="empty">只顯示最新 600 張，請用月份縮小範圍</div>' : '') + '</div>';
+    });
+  });
+}
+
+/* ---------- 待登與核對 ---------- */
+function v3VCP() {
+  v3Info(function () {
+    v3Load(); var ym = V3.ckm || today().slice(0, 7);
+    Promise.all([api('vcPending'), api('vcCheck', { ym: ym })]).then(function (a) {
+      if (S.view !== 'vcp') return; var p = a[0], c = a[1]; if (!p || !p.ok) return v3Fail(p); if (!c || !c.ok) return v3Fail(c);
+      var NAMES = { sale: '銷貨（完工、已鎖定的報價單）', credit: '折讓', pay: '收款', ap: '應付帳款（進貨）', apPay: '應付帳款付款', bank: '銀行存提（沒有對應收款或傳票）' };
+      var h = '<h2 style="margin:0 0 4px;font-size:20px">待登與核對</h2><div style="color:var(--mute);margin-bottom:14px">傳票起用日 ' + esc(p.start) + '；這天以後的往來，都要有一張傳票，漏做的會出現在這裡。</div>';
+      h += '<div class="card"><div class="tdh"><h3>還沒開傳票的項目</h3>' + pill(p.total + ' 項', p.total ? 'p-warn' : 'p-ok') + '</div>';
+      Object.keys(NAMES).forEach(function (k) { var L = p.groups[k]; if (!L.length) return; h += '<div style="margin:10px 0 2px;font-weight:600">' + NAMES[k] + ' ' + pill(L.length, 'p-warn') + '</div>' + L.slice(0, 80).map(function (x) { return v3Row('<b>' + esc(x.label) + '</b><span>' + esc(x.date) + '　' + (x.dir ? x.dir + '　' : '') + money(x.amount) + (x.guess ? '　建議類別：' + esc(x.guess) : '') + '</span>', '<button class="btn sm" data-v3="sug" data-t="' + esc(x.type) + '" data-k="' + esc(x.key) + '">開傳票</button>'); }).join(''); });
+      if (!p.total) h += '<div class="empty">全部都有傳票了 ✅</div>'; h += '</div>';
+      h += '<div class="card"><div class="tdh"><h3>月底核對</h3>' + '<input class="in" type="month" id="v3ck" value="' + esc(ym) + '" style="max-width:170px">' + '</div><div style="margin-bottom:6px">' + (c.pass ? pill('全部通過 ✅', 'p-ok') : pill('有項目要處理', 'p-bad')) + '　<span style="color:var(--mute);font-size:13px">' + c.count + ' 張傳票</span></div>' +
+        c.checks.map(function (k) { return v3Row('<b>' + (k.ok ? '✅ ' : '❌ ') + esc(k.name) + '</b><span>' + esc(k.detail) + (k.list.length ? '：' + esc(k.list.slice(0, 6).join('；')) + (k.list.length > 6 ? '…' : '') : '') + '</span>'); }).join('') + '</div>';
+      if (isBoss()) h += '<div class="card"><div class="tdh"><h3>帳務設定（老闆）</h3></div><div style="display:flex;gap:12px;flex-wrap:wrap"><div><label class="f">傳票起用日</label><input class="in" id="v3s1" type="date" value="' + esc(p.start) + '"></div><div><label class="f">鎖帳到哪個月（含）</label><input class="in" id="v3s2" type="month" value="' + esc(c.lock || '') + '"></div><div><label class="f">提醒啟用基準日</label><input class="in" id="v3s3" type="date" value="' + esc(V3.info.settings.base) + '"></div></div><div style="color:var(--mute);font-size:13px;margin-top:6px">鎖帳後，那個月以前的傳票不能新增、修改或作廢；要改請先調回月份。基準日之前、完全沒收款的舊報價單，不再跳紅字提醒。</div><div style="margin-top:10px"><button class="btn pri" data-v3="setsave">儲存設定</button></div></div>';
+      $('#main').innerHTML = h;
+    });
+  });
+}
+
+/* ---------- 銀行明細 ---------- */
+function v3BK() {
+  v3Info(function () {
+    v3Load(); api('bankList', { ym: V3.bkm }).then(function (r) {
+      if (S.view !== 'bk') return; if (!r || !r.ok) return v3Fail(r); if (!V3.bkm && r.months.length) { V3.bkm = r.months[0]; return v3BK(); }
+      V3.bk = r;
+      var tr = r.rows.map(function (x, i) { var opts = x.inn > 0 ? r.bankIn : r.bankOut, cur = x.cat || x.guess; return '<tr><td>' + esc(x.date.slice(5)) + '</td><td>' + esc(x.memo) + (x.remark ? '<div style="color:var(--mute);font-size:12px">' + esc(x.remark) + '</div>' : '') + '</td><td style="text-align:right">' + (x.out ? money(x.out) : '') + '</td><td style="text-align:right">' + (x.inn ? money(x.inn) : '') + '</td><td><select class="in v3cat" data-k="' + esc(x.key) + '" style="min-width:140px"><option value="">待分類</option>' + opts.map(function (o) { return '<option' + (o === cur ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>' + (!x.cat && x.guess ? '<div style="color:var(--mute);font-size:12px">系統建議，按確認才生效</div>' : '') + '</td><td>' + (x.voucher ? pill(x.voucher, 'p-ok') : x.covered ? pill('已由收款傳票涵蓋', 'p-ok') : '<button class="btn sm" data-v3="sug" data-t="銀行" data-k="' + esc(x.key) + '">開傳票</button>') + '</td></tr>'; }).join('');
+      $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">銀行明細</h2>' + v3Mon(r.months, V3.bkm, 'v3bm', false) + '<div style="flex:1"></div><button class="btn pri" data-v3="bkall">全部照建議確認</button></div><div style="color:var(--mute);font-size:13px;margin:0 0 8px">共 ' + r.cnt.total + ' 筆；還沒確認類別 ' + r.cnt.unconfirmed + ' 筆；還沒有傳票 ' + r.cnt.uncovered + ' 筆。匯入銀行明細仍在「預付廠商」頁。類別：進帳＝有開發票收入／未開發票收入／訂金／還借款或其他；出帳＝應付帳款／薪資／其他支出。</div><div class="card" style="padding:6px 8px;overflow:auto"><table class="tb" style="width:100%"><thead><tr><th>日期</th><th>摘要</th><th>提出</th><th>存入</th><th>類別</th><th>傳票</th></tr></thead><tbody>' + tr + '</tbody></table>' + (r.more ? '<div class="empty">只顯示 700 筆</div>' : '') + '</div>';
+    });
+  });
+}
+
+/* ---------- 分類帳科目總表 ---------- */
+function v3LED() {
+  v3Info(function () {
+    var q = V3.ledQ = V3.ledQ || { from: today().slice(0, 4) + '-01-01', to: today(), acct: '' };
+    $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">分類帳科目總表</h2><input class="in" id="v3lf" type="date" value="' + esc(q.from) + '" style="max-width:160px"><span>～</span><input class="in" id="v3lt" type="date" value="' + esc(q.to) + '" style="max-width:160px"><input class="in" id="v3la" placeholder="科目編號（可空白，多個用逗號）" value="' + esc(q.acct) + '" style="max-width:240px"><button class="btn pri" data-v3="ledgo">查詢</button><div style="flex:1"></div><button class="btn" data-v3="ledxls">匯出 Excel</button></div><div id="v3led"><div class="card empty">按「查詢」產生</div></div>';
+    if (V3.led) v3LEDDraw(); else v3LEDGo();
+  });
+}
+function v3LEDGo() {
+  var q = V3.ledQ; q.from = $('#v3lf').value; q.to = $('#v3lt').value; q.acct = $('#v3la').value.trim(); $('#v3led').innerHTML = '<div class="card empty"><span class="spin"></span>整理中…</div>';
+  api('ledger', q).then(function (r) { if (S.view !== 'led') return; if (!r || !r.ok) { $('#v3led').innerHTML = '<div class="card empty">' + esc((r && r.msg) || '失敗') + '</div>'; return; } V3.led = r; v3LEDDraw(); });
+}
+function v3LEDDraw() {
+  var r = V3.led, box = $('#v3led'); if (!box) return;
+  var sum = '<div class="card"><div class="tdh"><h3>科目餘額一覽</h3>' + pill('借 ' + money(r.total.dr) + '／貸 ' + money(r.total.cr), r.total.dr === r.total.cr ? 'p-ok' : 'p-bad') + '</div><div style="overflow:auto"><table class="tb" style="width:100%"><thead><tr><th>科目</th><th>借方合計</th><th>貸方合計</th><th>淨額（借－貸）</th></tr></thead><tbody>' + r.accounts.map(function (a) { return '<tr><td>' + esc(a.acct) + ' ' + esc(a.name) + '</td><td style="text-align:right">' + money(a.dr) + '</td><td style="text-align:right">' + money(a.cr) + '</td><td style="text-align:right">' + money(a.net) + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
+  var det = r.accounts.map(function (a) { return '<div class="card"><div class="tdh"><h3>' + esc(a.acct) + ' ' + esc(a.name) + '</h3></div><div style="overflow:auto"><table class="tb" style="width:100%"><thead><tr><th>日期</th><th>傳票號碼</th><th>摘要</th><th>借方</th><th>貸方</th></tr></thead><tbody>' + a.rows.map(function (x) { return '<tr><td>' + esc(x.date) + '</td><td>' + esc(x.v) + '</td><td>' + esc(x.memo) + '</td><td style="text-align:right">' + (x.dr ? money(x.dr) : '') + '</td><td style="text-align:right">' + (x.cr ? money(x.cr) : '') + '</td></tr>'; }).join('') + '<tr style="font-weight:600"><td colspan="3">小計</td><td style="text-align:right">' + money(a.dr) + '</td><td style="text-align:right">' + money(a.cr) + '</td></tr></tbody></table></div></div>'; }).join('');
+  box.innerHTML = (r.accounts.length ? sum + det : '<div class="card empty">這段期間沒有已入帳的傳票</div>');
+}
+function v3LEDXls() {
+  var r = V3.led; if (!r || !r.accounts.length) return toast('請先查詢');
+  loadXLSX(function (X) {
+    if (!X) return toast('Excel 元件載入失敗，請稍後再試');
+    var a = [['科目編號', '科目名稱', '日期', '傳票號碼', '摘要', '借方', '貸方']];
+    r.accounts.forEach(function (x) { x.rows.forEach(function (y) { a.push([x.acct, x.name, y.date, y.v, y.memo, y.dr || '', y.cr || '']); }); a.push([x.acct, x.name + ' 小計', '', '', '', x.dr, x.cr]); });
+    var s = [['科目編號', '科目名稱', '借方合計', '貸方合計', '淨額']]; r.accounts.forEach(function (x) { s.push([x.acct, x.name, x.dr, x.cr, x.net]); });
+    var wb = X.utils.book_new(); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(s), '科目餘額'); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(a), '分類帳明細'); X.writeFile(wb, '分類帳科目總表_' + r.from + '_' + r.to + '.xlsx');
+  });
+}
+
+/* ---------- 訂金管理 ---------- */
+function v3DEP() {
+  v3Load(); api('depositList').then(function (r) {
+    if (S.view !== 'dep') return; if (!r || !r.ok) return v3Fail(r);
+    var tr = r.rows.map(function (x) { return '<div class="trow" data-act="open" data-no="' + esc(x.no) + '"><div class="l"><b>' + esc(x.company) + '　' + esc(x.no) + '</b><span>' + esc(x.project) + '　收款日 ' + esc(x.date) + (x.bankDate ? '　入帳 ' + esc(x.bankDate) : '') + (x.voucher ? '　傳票 ' + esc(x.voucher) : '') + '</span></div><div class="r">' + money(x.amount) + ' ' + pill(x.state, x.state === '待轉收入' ? 'p-warn' : 'p-ok') + '</div></div>'; }).join('') || '<div class="empty">目前沒有訂金紀錄</div>';
+    $('#main').innerHTML = '<h2 style="margin:0 0 4px;font-size:20px">訂金管理</h2><div style="color:var(--mute);margin-bottom:12px">訂金在報價單的「收款」裡登記（類型選訂金）。案件完工或開了銷貨傳票，就視為「已轉收入」。</div><div class="card"><div class="tdh"><h3>待轉收入</h3>' + pill(money(r.sum.open), r.sum.open ? 'p-warn' : 'p-ok') + '</div><div style="color:var(--mute);font-size:13px">已轉收入合計 ' + money(r.sum.closed) + '</div></div><div class="card" style="padding:6px 14px">' + tr + '</div>';
+  });
+}
+
+/* ---------- 通用小表單 ---------- */
+function v3FormGen(title, fields, vals, saveAct, extra, before) {
+  V3.G = { fields: fields, act: saveAct, extra: extra || {} };
+  var h = '<div style="width:min(560px,94vw)">' + (before || '') + '<h3 style="margin-top:0">' + esc(title) + '</h3>' + fields.map(function (f) {
+    var v = vals[f.k] == null ? '' : vals[f.k], inp = f.opts ? '<select class="in v3g" data-k="' + f.k + '">' + f.opts.map(function (o) { return '<option' + (String(o) === String(v) ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>' : '<input class="in v3g" data-k="' + f.k + '" type="' + (f.type || 'text') + '"' + (f.list ? ' list="' + f.list + '"' : '') + ' value="' + esc(v) + '" placeholder="' + esc(f.ph || '') + '"' + (f.ro ? ' readonly' : '') + '>';
+    return '<label class="f">' + esc(f.label) + '</label>' + inp;
+  }).join('') + '<div id="v3gm" style="color:var(--bad);margin-top:8px"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn" data-act="mclose">取消</button><button class="btn pri" data-v3="gsave">儲存</button></div></div>';
+  mopen(h);
+}
+function v3GenVals() { var o = {}; document.querySelectorAll('#md .v3g').forEach(function (el) { o[el.dataset.k] = el.value; }); return o; }
+function v3GenSave() {
+  var g = V3.G, o = Object.assign({}, g.extra, v3GenVals()); if (g.pre) o = g.pre(o); var dup = $('#v3gdup'); if (dup && dup.checked) o.confirmDup = true;
+  api(g.act, { row: o }).then(function (r) {
+    if (r && r.ok !== false) { V3.info = null; return v3Done('已儲存'); }
+    if (r && r.code === 'DUP') { $('#v3gm').innerHTML = esc(r.msg) + '<label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="v3gdup"> 確認不是重複的</label>'; return; }
+    $('#v3gm').textContent = (r && r.msg) || '儲存失敗';
+  });
+}
+
+/* ---------- 應付帳款 ---------- */
+function v3AP() {
+  v3Load(); api('apList', { q: V3.apq, st: V3.aps }).then(function (r) {
+    if (S.view !== 'apv') return; if (!r || !r.ok) return v3Fail(r); V3.ap = r.rows;
+    var tr = r.rows.map(function (x) { return '<div class="trow" data-v3="apedit" data-id="' + esc(x['應付ID']) + '"><div class="l"><b>' + esc(x['廠商名稱'] || x['廠商編號']) + '　' + esc(x['發票號碼']) + '</b><span>' + esc(String(x['日期'])) + (x['付款日期'] ? '　付款 ' + esc(String(x['付款日期'])) : '') + (x['傳票號碼'] ? '　傳票 ' + esc(x['傳票號碼']) : '') + (x['備註'] ? '　' + esc(x['備註']) : '') + '</span></div><div class="r">' + money(x['合計']) + ' ' + pill(x['狀態'] === '作廢' ? '作廢' : x['付款狀態'], x['狀態'] === '作廢' ? 'p-mute' : x['付款狀態'] === '已付' ? 'p-ok' : 'p-warn') + '</div></div>'; }).join('') || '<div class="empty">沒有資料</div>';
+    $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">應付帳款</h2><select class="in" id="v3as" style="max-width:130px"><option value="">全部</option>' + ['未付', '已付', '作廢'].map(function (s) { return '<option' + (s === V3.aps ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select><input class="in" id="v3aq" placeholder="搜尋發票、廠商、備註" value="' + esc(V3.apq) + '"><div style="flex:1"></div>' + (isBoss() ? '<input type="file" id="v3apf" accept=".csv,.xlsx,.xls" style="display:none"><button class="btn" data-v3="apimp">📥 匯入 Ragic 應付</button>' : '') + '<button class="btn pri" data-v3="apnew">＋ 新增應付</button></div><div style="color:var(--mute);font-size:13px;margin:0 0 8px">尚未付款合計 ' + money(r.unpaid) + '。付款後把狀態改成「已付」並填付款日期；傳票在「待登與核對」開。</div><div class="card" style="padding:6px 14px">' + tr + '</div>';
+  });
+}
+function v3APForm(x) {
+  x = x || {}; var vn = (S.vendors || []).map(function (v) { return '<option value="' + esc(v['名稱']) + '">'; }).join('');
+  v3FormGen(x['應付ID'] ? '修改應付 ' + x['應付ID'] : '新增應付帳款', [
+    { k: 'date', label: '日期（發票日）', type: 'date' }, { k: 'vendor', label: '廠商', list: 'v3vend' }, { k: 'inv', label: '發票號碼（沒有請填「無發票」）' },
+    { k: 'net', label: '未稅金額', ph: '0' }, { k: 'tax', label: '稅額', ph: '0' }, { k: 'total', label: '合計（空白＝未稅＋稅額）' },
+    { k: 'acct', label: '費用科目', list: 'v3acl', ph: '5912' }, { k: 'paid', label: '付款狀態', opts: ['未付', '已付'] }, { k: 'payDate', label: '付款日期（已付才填）', type: 'date' }, { k: 'note', label: '備註' }, { k: 'void', label: '作廢這筆？', opts: ['否', '是'] }
+  ], { date: x['日期'] ? String(x['日期']) : today(), vendor: x['廠商名稱'] || '', inv: x['發票號碼'] || '', net: x['未稅額'] || '', tax: x['稅額'] || '', total: x['合計'] || '', acct: x['費用科目'] || '5912', paid: x['付款狀態'] || '未付', payDate: x['付款日期'] ? String(x['付款日期']) : '', note: x['備註'] || '', void: x['狀態'] === '作廢' ? '是' : '否' }, 'apSave', { id: x['應付ID'] || '' }, '<datalist id="v3vend">' + vn + '</datalist>' + v3Acl());
+  V3.G.pre = function (o) { var v = (S.vendors || []).filter(function (z) { return z['名稱'] === o.vendor; })[0]; o.vendorId = v ? v['廠商編號'] : ''; o.acct = String(o.acct).slice(0, 4); o.void = o.void === '是'; return o; };
+}
+
+/* ---------- 會計科目 ---------- */
+function v3ACC() {
+  v3Info(function () {
+    var q = V3.acq, rows = V3.info.accounts.filter(function (a) { return !q || (a.no + a.name).indexOf(q) >= 0; });
+    $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">會計科目</h2><input class="in" id="v3acq" placeholder="搜尋編號或名稱" value="' + esc(q) + '"><div style="flex:1"></div><button class="btn pri" data-v3="acnew">＋ 新增科目</button></div><div style="color:var(--mute);font-size:13px;margin:0 0 8px">只放實際用得到的科目（目前 ' + V3.info.accounts.length + ' 個，來自分類帳實際使用）。要用新的科目，在這裡新增即可。</div><div class="card" style="padding:6px 14px">' +
+      rows.map(function (a) { return '<div class="trow" data-v3="acedit" data-no="' + a.no + '"><div class="l"><b>' + a.no + '　' + esc(a.name) + '</b><span>' + esc(a.l1) + (a.note ? '　' + esc(a.note) : '') + '</span></div><div class="r">' + (a.use ? pill('使用中', 'p-ok') : pill('停用', 'p-mute')) + '</div></div>'; }).join('') + '</div>';
+  });
+}
+function v3ACForm(a) {
+  a = a || {}; v3FormGen(a.no ? '修改科目 ' + a.no : '新增會計科目', [{ k: 'no', label: '科目編號（4 位數字）', ro: !!a.no }, { k: 'name', label: '科目名稱' }, { k: 'l1', label: '分類（例：6-營業費用）' }, { k: 'use', label: '狀態', opts: ['使用中', '停用'] }, { k: 'note', label: '備註' }], { no: a.no || '', name: a.name || '', l1: a.l1 || '', use: a.use === false ? '停用' : '使用中', note: a.note || '' }, 'acctSave');
+  V3.G.pre = function (o) { o.use = o.use !== '停用'; return o; };
+}
+
+/* ---------- 員工資料 ---------- */
+function v3EMP() {
+  v3Load(); api('empList').then(function (r) {
+    if (S.view !== 'emp') return; if (!r || !r.ok) return v3Fail(r); V3.emp = r.rows;
+    $('#main').innerHTML = '<div class="bar"><h2 style="margin:0 12px 0 0;font-size:18px">員工資料</h2><div style="flex:1"></div><button class="btn pri" data-v3="emnew">＋ 新增員工</button></div><div style="color:var(--mute);font-size:13px;margin:0 0 8px">只記姓名、職稱、到職離職日與匯款後 5 碼（銀行明細辨識薪資用）；不放身分證與薪資金額。</div><div class="card" style="padding:6px 14px">' +
+      (r.rows.map(function (x) { return '<div class="trow" data-v3="emedit" data-id="' + esc(x['員工編號']) + '"><div class="l"><b>' + esc(x['姓名']) + '　' + esc(x['職稱']) + '</b><span>' + esc(x['員工編號']) + '　到職 ' + esc(String(x['到職日'] || '—')) + (x['離職日'] ? '　離職 ' + esc(String(x['離職日'])) : '') + (x['匯款後5碼'] ? '　末五碼 ' + esc(x['匯款後5碼']) : '') + '</span></div><div class="r">' + pill(x['狀態'], x['狀態'] === '在職' ? 'p-ok' : 'p-mute') + '</div></div>'; }).join('') || '<div class="empty">還沒有員工資料</div>') + '</div>';
+  });
+}
+function v3EMForm(x) {
+  x = x || {}; v3FormGen(x['員工編號'] ? '修改員工 ' + x['員工編號'] : '新增員工', [{ k: 'name', label: '姓名' }, { k: 'title', label: '職稱' }, { k: 'hire', label: '到職日', type: 'date' }, { k: 'leave', label: '離職日（在職免填）', type: 'date' }, { k: 'last5', label: '匯款後 5 碼' }, { k: 'note', label: '備註' }], { name: x['姓名'] || '', title: x['職稱'] || '', hire: x['到職日'] ? String(x['到職日']) : '', leave: x['離職日'] ? String(x['離職日']) : '', last5: x['匯款後5碼'] || '', note: x['備註'] || '' }, 'empSave', { id: x['員工編號'] || '' });
+}
+
+/* ---------- 事件 ---------- */
+document.addEventListener('click', function (e) {
+  var t = e.target.closest('[data-v3]'); if (!t) return; var a = t.dataset.v3, F = V3.F;
+  if (a === 'vnew') v3OpenForm();
+  else if (a === 'vopen') v3Detail(t.dataset.no);
+  else if (a === 'ladd') { F.lines.push({ acct: '', memo: '', dr: 0, cr: 0 }); v3FormDraw(); }
+  else if (a === 'lrm') { if (F.lines.length > 2) { F.lines.splice(Number(t.dataset.i), 1); v3FormDraw(); } }
+  else if (a === 'fsave') v3FormSave(!!t.dataset.p);
+  else if (a === 'vedit') { var v = V3.rows.filter(function (x) { return x['傳票號碼'] === t.dataset.no; })[0]; $('#md').remove(); v3OpenForm({ no: v['傳票號碼'], date: String(v['日期']), kind: v['種類'], memo: v['摘要'], note: v['備註'], srcType: v['來源類型'], srcKey: v['來源鍵'], lines: v.lines }); }
+  else if (a === 'vpost') { t.disabled = true; api('vcPost', { no: t.dataset.no }).then(function (r) { if (r && r.ok) v3Done('已入帳'); else { t.disabled = false; v3Err(r); } }); }
+  else if (a === 'vvoid') { var m = $('#v3vmsg'); if (!$('#v3vr')) { m.innerHTML = '<label class="f">作廢原因（必填）</label><input class="in" id="v3vr" placeholder="例：金額打錯，已重開"><div style="margin-top:8px"><button class="btn pri" data-v3="vvoid2" data-no="' + esc(t.dataset.no) + '">確認作廢</button></div>'; } }
+  else if (a === 'vvoid2') { var rs = $('#v3vr').value.trim(); if (!rs) return toast('作廢要寫原因'); t.disabled = true; api('vcVoid', { no: t.dataset.no, reason: rs }).then(function (r) { if (r && r.ok) v3Done('已作廢'); else { t.disabled = false; v3Err(r); } }); }
+  else if (a === 'sug') { t.disabled = true; api('vcSuggest', { type: t.dataset.t, key: t.dataset.k }).then(function (r) { t.disabled = false; if (!r || !r.ok) return v3Err(r); if (r.existing) return toast('這筆已經有傳票 ' + esc(r.existing)); v3Info(function () { v3OpenForm({ date: r.date, memo: r.memo, lines: r.lines, srcType: r.srcType, srcKey: r.srcKey, hint: r.note, kind: r.srcType === '銀行' ? '轉帳' : '轉帳' }); }); }); }
+  else if (a === 'setsave') { api('vcSettings', { start: $('#v3s1').value, lock: $('#v3s2').value, base: $('#v3s3').value }).then(function (r) { if (r && r.ok) { V3.info = r; toast('已儲存'); render(); } else v3Err(r); }); }
+  else if (a === 'bkall') { var its = (V3.bk.rows || []).filter(function (x) { return !x.cat && x.guess; }).map(function (x) { return { key: x.key, cat: x.guess }; }); if (!its.length) return toast('沒有可以照建議確認的列'); api('bankCat', { items: its }).then(function (r) { if (r && r.ok) { toast('已確認 ' + r.n + ' 筆'); render(); } else v3Err(r); }); }
+  else if (a === 'ledgo') v3LEDGo(); else if (a === 'ledxls') v3LEDXls();
+  else if (a === 'apnew') v3APForm(); else if (a === 'apedit') v3APForm((V3.ap || []).filter(function (x) { return x['應付ID'] === t.dataset.id; })[0]);
+  else if (a === 'apimp') $('#v3apf').click();
+  else if (a === 'acnew') v3ACForm(); else if (a === 'acedit') v3ACForm(V3.info.accounts.filter(function (x) { return x.no === t.dataset.no; })[0]);
+  else if (a === 'emnew') v3EMForm(); else if (a === 'emedit') v3EMForm((V3.emp || []).filter(function (x) { return x['員工編號'] === t.dataset.id; })[0]);
+  else if (a === 'gsave') v3GenSave();
+});
+document.addEventListener('input', function (e) {
+  var el = e.target, F = V3.F; if (!el.classList) return;
+  if (el.classList.contains('v3i') && F) { var l = F.lines[Number(el.dataset.i)], k = el.dataset.k; if (k === 'acct') { var m = String(el.value).match(/^\s*(\d{4})/); l.acct = m ? m[1] : el.value.trim(); } else l[k] = el.value; v3Tot(); }
+  else if (el.classList.contains('v3h') && F) { F[el.dataset.k] = el.value; }
+});
+document.addEventListener('change', function (e) {
+  var el = e.target; if (!el.id && !el.classList) return;
+  if (el.classList && el.classList.contains('v3i') && el.dataset.k === 'acct' && V3.F) { var l = V3.F.lines[Number(el.dataset.i)]; if (l.acct && V3.info) el.value = l.acct + ' ' + v3Ac(l.acct); }
+  if (el.classList && el.classList.contains('v3cat')) { api('bankCat', { items: [{ key: el.dataset.k, cat: el.value }] }).then(function (r) { if (r && r.ok) toast('已更新類別'); else { v3Err(r); render(); } }); }
+  else if (el.id === 'v3vm') { V3.vcm = el.value; v3VC(); } else if (el.id === 'v3vs') { V3.vcs = el.value; v3VC(); }
+  else if (el.id === 'v3bm') { V3.bkm = el.value; v3BK(); } else if (el.id === 'v3ck') { V3.ckm = el.value; v3VCP(); }
+  else if (el.id === 'v3as') { V3.aps = el.value; v3AP(); }
+  else if (el.id === 'v3apf' && el.files[0]) {
+    readTableFile(el.files[0], function (rows) {
+      var h = rows[0] || [], ix = h.indexOf('Ragic_ID'); if (ix < 0 || h.indexOf('未稅金額') < 0) return toast('這個檔案不像 Ragic 的應付帳款（找不到「Ragic_ID」「未稅金額」欄）', 5200);
+      var objs = rows.slice(1).filter(function (r) { return r[ix]; }).map(function (r) { var o = {}; h.forEach(function (k, j) { o[k] = r[j]; }); return o; });
+      if (!confirm('要匯入 ' + objs.length + ' 筆應付帳款嗎？已經匯過的會自動略過。')) return;
+      api('apImport', { batchId: 'AM' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6), rows: objs }).then(function (r) { if (r && r.ok) { toast('已匯入 ' + r.n + ' 筆（略過已存在 ' + (r.dup || 0) + '）'); render(); } else v3Err(r); });
+    });
+  }
+});
+document.addEventListener('keydown', function (e) { if (e.key !== 'Enter') return; if (e.target.id === 'v3vq') { V3.vcq = e.target.value; v3VC(); } else if (e.target.id === 'v3aq') { V3.apq = e.target.value; v3AP(); } else if (e.target.id === 'v3acq') { V3.acq = e.target.value; v3ACC(); } });
+
 start();
 </script>
 </body>
