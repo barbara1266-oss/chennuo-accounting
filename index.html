@@ -672,7 +672,7 @@ function canEdit() { return !!(E && S.user && S.user.role === '老闆' && E.stat
 function ro() { return !canEdit(); }
 function frozenNoteHTML() {
   if (!E || !E.no || !E.frozen || E.status === '已作廢') return '';
-  return '<div class="card" style="padding:12px 18px;margin-bottom:14px;font-size:14px;background:#fff7e6">🔒 這張' + esc(E.frozen) + '，金額與品項已受保護；成本、備註、完工日、設計師、分院標記、案件資料夾仍可修改。需要調整金額請走折讓。</div>';
+  return '<div class="card" style="padding:12px 18px;margin-bottom:14px;font-size:14px;background:#fff7e6">🔒 這張' + esc(E.frozen) + '，金額與品項已受保護；成本、備註、完工日、分院標記、案件資料夾仍可修改。需要調整金額請走折讓。</div>';
 }
 function giftBannerHTML() {
   if (!E || !E.no || E.status !== '草稿' || String(E.note || '').indexOf('【新分院大禮包】') < 0) return '';
@@ -896,12 +896,19 @@ function rowPdf(no, btn) {
   api('pdf', { no: no }).then(function (r) { if (!r.ok) { toast(esc(r.msg), 4000); btn.disabled = false; btn.textContent = lbl; return; } var row = rowBy(no); if (row) row['PDF連結'] = r.url; renderQuotes(); toast('PDF 已另存一份新的到雲端硬碟'); });
 }
 
-/* ---- 報價單內：收款、折讓、設計師 ---- */
+/* ---- 報價單內：收款、折讓、發票 ---- */
 function payInner() {
   var p = E.pay, boss = isBoss(), live = E.status === '已鎖定';
   var h = '<h3>收款與折讓<span>' + pill(p.progress, progCls(p.progress)) + (live ? ' <button class="btn sm" data-act="paynew" type="button">＋ 記一筆收款</button>' + (ppCan() ? ' <button class="btn sm" data-act="ppuse" type="button">預付抵扣</button>' : '') + (boss ? ' <button class="btn sm" data-act="crnew" type="button">折讓／讓價</button>' : '') : '') + '</span></h3>';
   h += '<div style="display:flex;gap:22px;flex-wrap:wrap;margin-bottom:12px;color:var(--mute)"><span>應收 <b style="color:var(--ink)">' + money(p.receivable) + '</b></span><span>已收 <b style="color:var(--ink)">' + money(p.paid) + '</b></span><span>尚差 <b style="color:var(--ink)">' + money(p.diff) + '</b></span>' + (p.prepaid ? '<span>預付抵扣 <b style="color:var(--ink)">' + money(p.prepaid) + '</b></span>' : '') + (p.credit ? '<span>已折讓 <b style="color:var(--ink)">' + money(p.credit) + '</b></span>' : '') + '</div>';
   h += ppInfoHTML();
+  var iv = p.invs || [];
+  if (iv.length > 1 || iv.some(function (x) { return x.extra || x.unreg; }) || (boss && live && iv.length)) {
+    h += '<div style="margin:6px 0 12px"><div style="font-weight:600;margin-bottom:6px">發票與收款對照</div><table class="ls nolink"><tr><th>發票號碼</th><th>日期</th><th class="num">發票金額</th><th class="num">已收（記在這張發票）</th><th></th></tr>' + iv.map(function (x) {
+      var lab = x.loose ? '<span style="color:var(--mute)">（收款沒填對應發票）</span>' : esc(x.no) + (x.unreg ? ' <span class="tag">收款上有記、尚未登錄</span>' : '') + (x.extra ? ' <span class="tag">其他發票</span>' : '');
+      return '<tr class="row"><td>' + lab + '</td><td>' + esc(String(x.date || '').replace(/-/g, '/')) + '</td><td class="num">' + (x.amt ? money(x.amt) : '') + '</td><td class="num">' + (x.paid ? money(x.paid) : '<span style="color:var(--bad)">未收</span>') + '</td><td>' + (boss && x.extra ? '<button class="btn sm" data-act="invexdel" data-no="' + esc(x.no) + '" type="button">移除</button>' : '') + '</td></tr>';
+    }).join('') + '</table>' + (boss && live ? '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px"><input class="in" id="inx_no" maxlength="10" placeholder="其他發票號碼" style="max-width:160px"><input class="in" id="inx_date" type="date" style="max-width:160px"><input class="in" id="inx_amt" type="number" step="any" placeholder="發票金額" style="max-width:130px"><button class="btn sm" data-act="invexadd" type="button">＋ 登記另一張發票</button></div>' : '') + '</div>';
+  }
   var ps = p.payments || [];
   h += ps.length ? '<table class="ls nolink"><tr><th>日期</th><th class="num">金額</th><th>類型</th><th>方式</th><th>後5碼</th><th>狀態</th><th></th></tr>' + ps.map(function (x) {
     return '<tr class="row"><td>' + esc(String(x['收款日期']).replace(/-/g, '/')) + '</td><td class="num">' + money(x['金額']) + '</td><td>' + esc(x['類型']) + (x['性質'] === '代收代付' ? ' <span class="tag">代收代付</span>' : '') + (x['性質'] === '預付抵扣' ? ' <span class="tag">用 ' + esc(x['預付單號']) + '（稅外 ' + money(x['稅外額']) + '）</span>' : '') + '</td><td>' + esc(x['方式']) + '</td><td>' + esc(x['匯款後5碼']) + '</td><td>' + (x['狀態'] === '已沖銷' ? '<span style="color:var(--mute)">已沖銷：' + esc(x['沖銷原因']) + '</span>' : '有效') + '</td><td>' + (boss && x['狀態'] !== '已沖銷' ? '<button class="btn sm" data-act="payrev" data-id="' + esc(x['收款ID']) + '" type="button">沖銷</button>' : '') + '</td></tr>';
@@ -910,7 +917,6 @@ function payInner() {
   if (cs.length) h += '<div style="margin-top:12px;font-weight:600">折讓／讓價</div><table class="ls nolink"><tr><th>日期</th><th class="num">合計</th><th>原因</th><th>狀態</th><th></th></tr>' + cs.map(function (x) {
     return '<tr class="row"><td>' + esc(String(x['折讓日期']).replace(/-/g, '/')) + '</td><td class="num">' + money(x['合計']) + '</td><td>' + esc(x['原因']) + '</td><td>' + (x['狀態'] === '作廢' ? '已作廢' : '有效') + '</td><td>' + (boss && x['狀態'] !== '作廢' ? '<button class="btn sm" data-act="crvoid" data-id="' + esc(x['折讓編號']) + '" type="button">作廢</button>' : '') + '</td></tr>';
   }).join('') + '</table>';
-  if (boss) h += '<div style="margin-top:14px;max-width:360px"><label class="f">設計師（外包，選填，彙總表用）</label><input class="in" id="f_designer" value="' + esc(E.designer || '') + '" maxlength="40"></div>';
   return h;
 }
 function payCardHTML() { return (E.no && E.status !== '草稿' && E.pay) ? '<div class="card sec" id="paycard">' + payInner() + '</div>' : ''; }
@@ -1053,7 +1059,7 @@ function ovDraw(z) {
     (r.noDoneDate ? '<div style="color:var(--mute);font-size:13px;margin:-6px 4px 12px">有 ' + r.noDoneDate + ' 張沒有完工日，已拖天數改用發票日或報價日估算（列上有標示）。標記完工日後會更準。</div>' : '') +
     (rows.length ? '<div class="sc"><table class="ls nolink"><tr><th></th><th>客戶</th><th>案件</th><th class="num">金額</th><th>狀態</th><th>已拖多久</th><th></th></tr>' + rows.map(function (x) {
       var m = x.state === 'unbilled' ? x.receivable : x.outstanding;
-      return '<tr class="row"><td>' + (x.selectable ? '<input type="checkbox" data-bk="' + esc(x.no) + '" data-cu="' + esc(x.cust) + '" data-rv="' + (Number(x.receivable) || 0) + '"' + (f.sel[x.no] ? ' checked' : '') + ' style="width:18px;height:18px;accent-color:#f2b800">' : '') + '</td><td>' + esc(x.company) + '</td><td><b>' + esc(x.project) + '</b><div style="font-size:12px;color:var(--mute)">' + esc(x.no) + (x.invNo ? '　發票 ' + esc(x.invNo) : '') + '</div></td><td class="num">' + money(m) + (x.state === 'unpaid' ? '<div style="font-size:11px;color:var(--mute)">應收 ' + money(x.receivable) + '</div>' : '') + '</td><td>' + (x.state === 'unbilled' ? pill('未請款', 'p-warn') : pill('已請款未入帳', 'p-bad') + (x.progress ? '<div style="font-size:11px;color:var(--mute)">' + esc(x.progress) + '</div>' : '')) + (x.reason ? '<div>' + pill(x.reason, 'p-mute') + '</div>' : '') + (x.anomaly ? '<div>' + pill('請確認金額／成本', 'p-warn') + '</div>' : '') + '</td><td>' + dayPill(x) + '</td><td>' + fold(x) + '</td></tr>';
+      return '<tr class="row" data-ovno="' + esc(x.no) + '" data-ovst="' + x.state + '" style="cursor:pointer"><td style="padding:10px 14px">' + (x.selectable ? '<input type="checkbox" data-im="' + esc(x.invMode || '') + '" data-bk="' + esc(x.no) + '" data-cu="' + esc(x.cust) + '" data-rv="' + (Number(x.receivable) || 0) + '"' + (f.sel[x.no] ? ' checked' : '') + ' style="width:18px;height:18px;accent-color:#f2b800">' : '') + '</td><td>' + esc(x.company) + '</td><td><b>' + esc(x.project) + '</b><div style="font-size:12px;color:var(--mute)">' + esc(x.no) + (x.invNo ? '　發票 ' + esc(x.invNo) : '') + '</div></td><td class="num">' + money(m) + (x.state === 'unpaid' ? '<div style="font-size:11px;color:var(--mute)">應收 ' + money(x.receivable) + '</div>' : '') + '</td><td>' + (x.state === 'unbilled' ? pill('未請款', 'p-warn') : pill('已請款未入帳', 'p-bad') + (x.progress ? '<div style="font-size:11px;color:var(--mute)">' + esc(x.progress) + '</div>' : '')) + (x.reason ? '<div>' + pill(x.reason, 'p-mute') + '</div>' : '') + (x.anomaly ? '<div>' + pill('請確認金額／成本', 'p-warn') + '</div>' : '') + '</td><td>' + dayPill(x) + '</td><td>' + fold(x) + '</td></tr>';
     }).join('') + '</table></div>' : '<div class="card empty">' + (f.cust || f.ym || f.st ? '這個篩選條件下沒有單。' : '目前沒有待請款或待入帳的單。') + '</div>') +
     '<div id="ovbar"></div>' +
     (pend.length ? '<details style="margin-top:20px"' + (f.pendOpen ? ' open' : '') + ' data-pend="1"><summary style="cursor:pointer;color:var(--mute);padding:6px 4px">還沒標完工的單（' + pend.length + ' 張）：標記完工後才會進到上面的「未請款」</summary><div class="sc"><table class="ls nolink"><tr><th>客戶</th><th>案件</th><th>報價日</th><th class="num">金額</th><th></th></tr>' + pend.map(function (x) { return '<tr class="row"><td>' + esc(x.company) + '</td><td><b>' + esc(x.project) + '</b><div style="font-size:12px;color:var(--mute)">' + esc(x.no) + '</div></td><td>' + esc(String(x.date || '').replace(/-/g, '/')) + '</td><td class="num">' + money(x.amount) + '</td><td><button class="btn sm" data-act="markdone" data-no="' + esc(x.no) + '">標記已完工</button></td></tr>'; }).join('') + '</table></div></details>' : '');
@@ -1067,7 +1073,7 @@ function ovBar(z) {
 }
 function blSyncSum() {
   var z = ovZ(), f = ovF(z);
-  document.querySelectorAll('#ovbody [data-bk]').forEach(function (c) { if (c.checked) f.sel[c.dataset.bk] = { cust: c.dataset.cu, amt: Number(c.dataset.rv) || 0 }; else delete f.sel[c.dataset.bk]; });
+  document.querySelectorAll('#ovbody [data-bk]').forEach(function (c) { if (c.checked) f.sel[c.dataset.bk] = { cust: c.dataset.cu, amt: Number(c.dataset.rv) || 0, im: c.dataset.im || '' }; else delete f.sel[c.dataset.bk]; });
   ovBar(z);
 }
 function renderBilling() { $('#main').innerHTML = ovShell('G'); ovLoad('G'); }
@@ -1077,24 +1083,35 @@ function ovInvoice() {
   var z = ovZ(), f = ovF(z), ks = Object.keys(f.sel); if (!ks.length) return toast('請先勾選要請款的單');
   var cs = {}; ks.forEach(function (k) { cs[f.sel[k].cust] = 1; }); if (Object.keys(cs).length > 1) return toast('一張發票只能開給同一家客戶，請先用上方的客戶篩選，只勾同一家的單', 5000);
   var sum = Math.round(ks.reduce(function (s2, k) { return s2 + f.sel[k].amt; }, 0) * 100) / 100, c = S.customers.filter(function (x) { return String(x['客戶編號']) === Object.keys(cs)[0]; })[0];
+  var nInv = ks.filter(function (k) { return f.sel[k].im === '開發票' || !f.sel[k].im; }).length, nUnk = ks.filter(function (k) { return f.sel[k].im === '待確認'; }).length;
+  if (nInv && nInv < ks.length) return toast('「要開發票」的單和「免開發票／待確認」的單要分開請款，請只勾同一種', 6000);
   var d = document.createElement('div');
+  if (!nInv) {
+    d.innerHTML = '<div class="modal" id="md"><div class="mbox"><h3>產生請款單：' + esc(c ? c['公司'] : '') + '</h3><div style="color:var(--mute);font-size:13.5px;margin-bottom:12px;line-height:1.7">共 ' + ks.length + ' 張，應收合計 <b style="color:var(--ink)">' + money(sum) + '</b>。這些單不開發票，系統只會產生請款單編號。</div>' +
+      (nUnk ? '<label style="display:flex;gap:10px;align-items:center;margin:8px 0"><input type="checkbox" id="bl_free" style="width:20px;height:20px;accent-color:#f2b800"> 其中 ' + nUnk + ' 張的發票欄是「待確認」，產生請款單時一併改成「免開發票」</label>' : '') +
+      '<div id="blmsg"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button class="btn" data-act="mclose">取消</button><button class="btn pri" data-act="blapply" data-mode="noinv" data-unk="' + nUnk + '" data-cust="' + esc(Object.keys(cs)[0]) + '">產生請款單</button></div></div></div>';
+    document.body.appendChild(d.firstChild); return;
+  }
   d.innerHTML = '<div class="modal" id="md"><div class="mbox"><h3>請款：' + esc(c ? c['公司'] : '') + '</h3><div style="color:var(--mute);font-size:13.5px;margin-bottom:12px">共 ' + ks.length + ' 張，應收合計 ' + money(sum) + '。填入發票資料後套用，系統會寫入各報價單並產生請款單編號。</div>' +
     '<div class="grid3"><div><label class="f">發票號碼</label><input class="in" id="bl_no" maxlength="10" placeholder="例如 AB12345678"></div><div><label class="f">發票日期</label><input class="in" id="bl_date" type="date" value="' + today() + '"></div><div><label class="f">發票總額（含稅，需等於合計）</label><input class="in" id="bl_total" type="number" step="any" value="' + sum + '"></div></div>' +
     '<div id="blmsg"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button class="btn" data-act="mclose">取消</button><button class="btn pri" data-act="blapply" data-cust="' + esc(Object.keys(cs)[0]) + '">套用：寫入發票並產生請款單編號</button></div></div></div>';
   document.body.appendChild(d.firstChild);
 }
 function blApply() {
-  var z = ovZ(), f = ovF(z), nos = Object.keys(f.sel), btn = $('[data-act=blapply]'), cust = btn.dataset.cust, bid = newId('BT'); btn.disabled = true;
-  api('billingApply', { batchId: bid, cust: cust, ym: String($('#bl_date').value || today()).slice(0, 7), nos: nos, invNo: $('#bl_no').value, invDate: $('#bl_date').value, invTotal: Number($('#bl_total').value) }).then(function (r) {
+  var z = ovZ(), f = ovF(z), nos = Object.keys(f.sel), btn = $('[data-act=blapply]'), cust = btn.dataset.cust, bid = newId('BT'), noinv = btn.dataset.mode === 'noinv';
+  if (noinv && Number(btn.dataset.unk) > 0 && !$('#bl_free').checked) return toast('請先勾選「一併改成免開發票」，或取消後把待確認的單分開處理', 5000);
+  btn.disabled = true;
+  var pl = noinv ? { batchId: bid, mode: 'noinv', confirmFree: true, cust: cust, ym: today().slice(0, 7), nos: nos } : { batchId: bid, cust: cust, ym: String($('#bl_date').value || today()).slice(0, 7), nos: nos, invNo: $('#bl_no').value, invDate: $('#bl_date').value, invTotal: Number($('#bl_total').value) };
+  api('billingApply', pl).then(function (r) {
     if (!r || !r.ok) { btn.disabled = false; return toast(esc((r && r.msg) || '套用失敗'), 5000); }
     (r.rows || []).forEach(setRow); f.sel = {};
     var ar = r.archive || {}, tx = ar.moved ? '，已把 ' + ar.moved + ' 個案件資料夾移到封存區' : '', kp = ar.kept ? '（' + ar.kept + ' 個資料夾因同資料夾還有別張單未請款，先留著）' : '', er = ar.err ? '<div style="color:var(--warn);margin-top:6px">資料夾封存沒成功：' + esc(ar.err) + '。請款本身已完成。</div>' : '';
-    $('#md .mbox').innerHTML = '<h3>已套用　請款單編號 ' + esc(r.billNo) + '</h3><div style="color:var(--mute)">共 ' + (r.count || nos.length) + ' 張，合計 ' + money(r.total || 0) + '。發票號碼已寫入各報價單' + tx + kp + '。</div>' + er + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button class="btn" data-act="blundo" data-b="' + esc(bid) + '">復原這次請款</button><button class="btn pri" data-act="mclose">完成</button></div>';
+    $('#md .mbox').innerHTML = '<h3>已套用　請款單編號 ' + esc(r.billNo) + '</h3><div style="color:var(--mute)">共 ' + (r.count || nos.length) + ' 張，合計 ' + money(r.total || 0) + (noinv ? '。已產生請款單' : '。發票號碼已寫入各報價單') + tx + kp + '。</div>' + er + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button class="btn" data-act="blundo" data-b="' + esc(bid) + '">復原這次請款</button><button class="btn pri" data-act="mclose">完成</button></div>';
     ovLoad(z);
   });
 }
 function blUndo(bid) {
-  if (!confirm('復原後，這批報價單的發票號碼與請款單編號會清掉（發票號碼保留作廢紀錄），已封存的案件資料夾也會搬回作業區。確定嗎？')) return;
+  if (!confirm('復原後，這批報價單的請款單編號（以及發票號碼，若有）會清掉，已封存的案件資料夾也會搬回作業區。確定嗎？')) return;
   api('billingUndo', { batchId: bid }).then(function (r) { if (!r.ok) return toast(esc(r.msg), 6000); (r.rows || []).forEach(setRow); var m = $('#md'); if (m) m.remove(); toast('已復原'); ovLoad(); });
 }
 /* ---- 標記已完工（含完工日，已拖天數從這天起算） ---- */
@@ -1366,13 +1383,13 @@ function drawDone() {
   rows.sort(function (a, b) { return String(b.doneDate).localeCompare(String(a.doneDate)) || b.no.localeCompare(a.no); });
   if (!rows.length) return el.innerHTML = '<div class="card empty">沒有符合的案件。</div>';
   var groups = [], gi = {}; rows.forEach(function (x) { var k = x.month || '未標月份'; if (gi[k] === undefined) { gi[k] = groups.length; groups.push({ m: k, rows: [] }); } groups[gi[k]].rows.push(x); });
-  var head = '<tr><th>報價單號</th><th>公司</th><th>完工日</th><th>發票號碼</th><th class="num">銷售額</th><th class="num">應收</th><th class="num">已收</th><th>最後收款</th><th class="num">成本</th><th class="num">毛利</th><th>設計師</th><th>進度</th></tr>';
+  var head = '<tr><th>報價單號</th><th>公司</th><th>完工日</th><th>發票號碼</th><th class="num">銷售額</th><th class="num">應收</th><th class="num">已收</th><th>最後收款</th><th class="num">成本</th><th class="num">毛利</th><th>進度</th></tr>';
   var all = { net: 0, cost: 0, profit: 0, need: 0 }; rows.forEach(function (x) { all.net += x.net; all.cost += x.cost; all.profit += x.profit; if (x.need) all.need++; });
   el.innerHTML = '<div style="color:var(--mute);margin:0 4px 12px">共 ' + rows.length + ' 張　營業額 <b style="color:var(--ink)">' + money(r2(all.net)) + '</b>　成本 ' + money(r2(all.cost)) + '　毛利 <b style="color:var(--ink)">' + money(r2(all.profit)) + '</b>' + (all.need ? '　<span class="pill p-warn">' + all.need + ' 張待補成本</span> <button class="btn sm" data-act="cqgo">去整理 →</button>' : '') + '</div>' +
     groups.map(function (g, gx) {
       var s = { net: 0, cost: 0, profit: 0, need: 0 }; g.rows.forEach(function (x) { s.net += x.net; s.cost += x.cost; s.profit += x.profit; if (x.need) s.need++; });
       return '<details open style="margin-bottom:14px"><summary style="cursor:pointer;padding:10px 6px;font-weight:600;display:flex;gap:18px;flex-wrap:wrap;align-items:baseline"><span style="font-size:16px">' + esc(g.m.replace('-', ' 年 ')) + ' 月</span><span style="color:var(--mute);font-weight:400">' + g.rows.length + ' 張</span><span style="font-weight:400">營業額 <b>' + money(r2(s.net)) + '</b></span><span style="font-weight:400;color:var(--mute)">成本 ' + money(r2(s.cost)) + '</span><span style="font-weight:400">毛利（淨利） <b>' + money(r2(s.profit)) + '</b></span>' + (s.need ? '<span class="pill p-warn" style="font-weight:400">' + s.need + ' 張待補成本</span>' : '') + '</summary>' +
-        '<div class="sc"><table class="ls nolink">' + head + g.rows.map(function (x) { return '<tr class="row"><td><b>' + esc(x.no) + '</b></td><td>' + esc(x.company) + '</td><td>' + esc(String(x.doneDate).replace(/-/g, '/')) + '</td><td>' + esc(x.invNo) + '</td><td class="num">' + money(x.sales) + '</td><td class="num">' + money(x.receivable) + '</td><td class="num">' + money(x.paid) + '</td><td>' + esc(String(x.lastPaid).replace(/-/g, '/')) + '</td><td class="num">' + costCell(x) + '</td><td class="num">' + money(x.profit) + '</td><td><input class="mini" data-dz="' + esc(x.no) + '" value="' + esc(x.designer) + '" maxlength="40" style="width:110px"></td><td>' + pill(x.progress, progCls(x.progress)) + '</td></tr>'; }).join('') + '</table></div></details>';
+        '<div class="sc"><table class="ls nolink">' + head + g.rows.map(function (x) { return '<tr class="row"><td><b>' + esc(x.no) + '</b></td><td>' + esc(x.company) + '</td><td>' + esc(String(x.doneDate).replace(/-/g, '/')) + '</td><td>' + esc(x.invNo) + '</td><td class="num">' + money(x.sales) + '</td><td class="num">' + money(x.receivable) + '</td><td class="num">' + money(x.paid) + '</td><td>' + esc(String(x.lastPaid).replace(/-/g, '/')) + '</td><td class="num">' + costCell(x) + '</td><td class="num">' + money(x.profit) + '</td><td>' + pill(x.progress, progCls(x.progress)) + '</td></tr>'; }).join('') + '</table></div></details>';
     }).join('');
 }
 function r2(n) { return Math.round(n * 100) / 100; }
@@ -1393,17 +1410,18 @@ function openCostModal(no) {
 function costDraw() {
   var d = CS && CS.d, el = $('#csb'); if (!d || !el) return;
   var ed = CS.edit ? d.entries.filter(function (e) { return e.id === CS.edit; })[0] : null;
-  var rows = d.entries.map(function (e) { return '<tr><td>' + esc(e.date.replace(/-/g, '/')) + '</td><td>' + esc(e.vendor) + '</td><td>' + esc(e.note) + (e.pm ? ' ' + pill(e.pm, 'p-mute') : '') + (e.jh ? ' ' + pill('健豪 ' + e.jh, 'p-mute') : '') + (e.src === 'Ragic匯入' ? ' ' + pill('Ragic 匯入', 'p-mute') : '') + (e.chk ? ' ' + pill('待確認', 'p-warn') : '') + '</td><td class="num">' + money(e.amount) + '</td><td style="white-space:nowrap"><button class="btn sm" data-act="costedit" data-id="' + esc(e.id) + '">改</button> <button class="btn sm" data-act="costdel" data-id="' + esc(e.id) + '">刪</button></td></tr>'; }).join('');
+  var rows = d.entries.map(function (e) { return '<tr><td>' + esc(e.date.replace(/-/g, '/')) + '</td><td>' + esc(e.vendor) + '</td><td>' + esc(e.designer || '') + '</td><td>' + esc(e.note) + (e.pm ? ' ' + pill(e.pm, 'p-mute') : '') + (e.jh ? ' ' + pill('健豪 ' + e.jh, 'p-mute') : '') + (e.src === 'Ragic匯入' ? ' ' + pill('Ragic 匯入', 'p-mute') : '') + (e.chk ? ' ' + pill('待確認', 'p-warn') : '') + '</td><td class="num">' + money(e.amount) + '</td><td style="white-space:nowrap"><button class="btn sm" data-act="costedit" data-id="' + esc(e.id) + '">改</button> <button class="btn sm" data-act="costdel" data-id="' + esc(e.id) + '">刪</button></td></tr>'; }).join('');
   var vend = (S.vendors || []).map(function (v) { return '<option value="' + esc(v['名稱']) + '">'; }).join('');
   el.innerHTML = '<div style="color:var(--mute);font-size:13.5px;margin-bottom:10px">' + esc(d.company || '') + (d.project ? '｜' + esc(d.project) : '') + '　銷售額（未稅） ' + money(d.sales) + '</div>' +
-    (rows ? '<div class="sc"><table class="ls nolink"><tr><th>日期</th><th>廠商</th><th>備註</th><th class="num">金額</th><th></th></tr>' + rows + '</table></div>' : '<div class="empty" style="padding:10px 0">還沒有記錄的成本。</div>') +
+    (rows ? '<div class="sc"><table class="ls nolink"><tr><th>日期</th><th>廠商</th><th>設計師</th><th>備註</th><th class="num">金額</th><th></th></tr>' + rows + '</table></div>' : '<div class="empty" style="padding:10px 0">還沒有記錄的成本。</div>') +
     (d.lineCost ? '<div style="color:var(--mute);margin-top:8px;font-size:13.5px">另外，報價單明細列上已填的成本 ' + money(d.lineCost) + '（要改請到報價單裡改）</div>' : '') +
     (CS.auto && !(d.total > 0) ? '<div style="margin:10px 0;padding:12px 14px;border-radius:12px;background:#fff7e6;font-size:14px">標準成本試算 <b>' + money(CS.auto.cost) + '</b>（品項成本 × 數量）　<button class="btn sm pri" data-act="costauto">帶入</button></div>' : '') +
     '<div style="margin:12px 0;font-size:15px">成本合計 <b>' + money(d.total) + '</b>　預估毛利 <b>' + money(r2(d.sales - d.total)) + '</b>' + (d.noCost ? '　' + pill('已標示確定無成本', 'p-ok') : '') + '</div>' +
     '<div style="border-top:1px solid var(--line,#eee);padding-top:12px"><div style="font-weight:600;margin-bottom:8px">' + (ed ? '修改這一筆' : '＋ 記一筆成本') + '</div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px"><div><label class="f">日期</label><input class="in" id="cs_date" type="date" value="' + esc(ed ? ed.date : today()) + '"></div><div><label class="f">金額</label><input class="in" id="cs_amt" type="number" inputmode="decimal" min="0" step="any" placeholder="例如 1200" value="' + (ed ? ed.amount : '') + '"></div><div><label class="f">廠商（選填）</label><input class="in" id="cs_vendor" list="dlcsv" value="' + esc(ed ? ed.vendor : '') + '"><datalist id="dlcsv">' + vend + '</datalist></div><div><label class="f">備註（選填）</label><input class="in" id="cs_note" value="' + esc(ed ? ed.note : '') + '" maxlength="200"></div><div><label class="f">付款方式（選填）</label><select class="in" id="cs_pm">' + ['', '預付扣抵', '匯款', '現金', '其他'].map(function (x) { return '<option' + ((ed && ed.pm === x) ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div><div><label class="f">健豪訂單號（選填）</label><input class="in" id="cs_jh" value="' + esc(ed ? ed.jh : '') + '" maxlength="40"></div></div></div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px"><div><label class="f">日期</label><input class="in" id="cs_date" type="date" value="' + esc(ed ? ed.date : today()) + '"></div><div><label class="f">金額</label><input class="in" id="cs_amt" type="number" inputmode="decimal" min="0" step="any" placeholder="例如 1200" value="' + (ed ? ed.amount : '') + '"></div><div><label class="f">廠商（選填）</label><input class="in" id="cs_vendor" list="dlcsv" value="' + esc(ed ? ed.vendor : '') + '"><datalist id="dlcsv">' + vend + '</datalist></div><div><label class="f">設計師（選填）</label><input class="in" id="cs_dsg" list="dlcsd" value="' + esc(ed ? ed.designer : '') + '" maxlength="40" placeholder="例如 Anita"><datalist id="dlcsd">' + dsgList(d) + '</datalist></div><div><label class="f">備註（選填）</label><input class="in" id="cs_note" value="' + esc(ed ? ed.note : '') + '" maxlength="200"></div><div><label class="f">付款方式（選填）</label><select class="in" id="cs_pm">' + ['', '預付扣抵', '匯款', '現金', '其他'].map(function (x) { return '<option' + ((ed && ed.pm === x) ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div><div><label class="f">健豪訂單號（選填）</label><input class="in" id="cs_jh" value="' + esc(ed ? ed.jh : '') + '" maxlength="40"></div></div></div>' +
     '<div style="display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-top:18px"><div>' + (d.total > 0 ? '' : '<button class="btn" data-act="costnone">' + (d.noCost ? '取消「確定無成本」' : '這張確定沒有成本') + '</button>') + '</div><div style="display:flex;gap:10px">' + (ed ? '<button class="btn" data-act="costcancel">取消修改</button>' : '') + '<button class="btn" data-act="mclose">關閉</button><button class="btn pri" data-act="costsave">' + (ed ? '儲存修改' : '記下這筆') + '</button></div></div>';
 }
+function dsgList(d) { var seen = {}; (d.entries || []).forEach(function (e) { if (e.designer) seen[e.designer] = 1; }); return Object.keys(seen).map(function (n) { return '<option value="' + esc(n) + '">'; }).join(''); }
 function costSync(r) {
   if (!S.dr) return; var x = S.dr.filter(function (y) { return y.no === r.no; })[0]; if (!x) return;
   x.cost = r.total; x.profit = r2(x.net - r.total); x.noCost = !!r.noCost; x.ce = r.entries.length; x.chk = r.entries.some(function (e) { return e.chk; }); x.need = !(r.total > 0) && !r.noCost && !costKindSkip(x.kind);
@@ -1412,7 +1430,7 @@ function costSync(r) {
 function costSave() {
   var amt = Number($('#cs_amt').value); if (!(amt > 0)) return toast('金額請填大於 0 的數字');
   var btn = $('[data-act=costsave]'); btn.disabled = true;
-  api('costSave', { no: CS.no, id: CS.edit, date: $('#cs_date').value, vendor: $('#cs_vendor').value, amount: amt, note: $('#cs_note').value, payMethod: $('#cs_pm').value, jhNo: $('#cs_jh').value }).then(function (r) {
+  api('costSave', { no: CS.no, id: CS.edit, date: $('#cs_date').value, vendor: $('#cs_vendor').value, amount: amt, note: $('#cs_note').value, payMethod: $('#cs_pm').value, jhNo: $('#cs_jh').value, designer: $('#cs_dsg').value }).then(function (r) {
     if (!r || !r.ok) { btn.disabled = false; return toast(esc((r && r.msg) || '儲存失敗'), 4200); }
     CS.d = r; CS.edit = ''; costSync(r); costDraw(); toast('已記下');
   });
@@ -1657,8 +1675,6 @@ document.addEventListener('change', function (e) {
   if (t.dataset.lf) lfChange(t);
   else if (t.id === 'pc') { S.pc = t.value; loadPays(); } else if (t.id === 'pm') { S.pm = t.value; loadPays(); }
   else if (t.id === 'dm') { S.dm = t.value; renderDone(); }
-  else if (t.id === 'f_designer' && E) api('saveDesigner', { no: E.no, designer: t.value }).then(function (r) { if (!r.ok) return toast(esc(r.msg), 4200); E.designer = r.row['設計師'] || ''; setRow(r.row); toast('設計師已儲存'); });
-  else if (t.dataset.dz) api('saveDesigner', { no: t.dataset.dz, designer: t.value }).then(function (r) { if (!r.ok) return toast(esc(r.msg), 4200); setRow(r.row); toast('已儲存'); });
   else if (t.id === 'ov_c') { ovF(ovZ()).cust = t.value; drawBill(); } else if (t.id === 'ov_m') { ovF(ovZ()).ym = t.value; drawBill(); }
   else if (t.dataset.bk !== undefined) blSyncSum();
   else if (t.id === 'f_allbranch2' && E) { document.querySelectorAll('[data-bi]').forEach(function (s) { s.value = t.value; }); }
@@ -2534,6 +2550,8 @@ function cqDraw() {
     return '<tr><td><b>' + esc(g.name || '(未命名)') + '</b>' + (g.unit ? ' <span style="color:var(--mute)">／' + esc(g.unit) + '</span>' : '') + (g.ship ? ' ' + pill('運費・請確認標準', 'p-warn') : '') + '<div style="font-size:12.5px;color:var(--mute)">' + (g.code ? esc(g.code) + '　' : '') + (g.why ? '<div style="font-size:12.5px;color:var(--bad)">' + esc(g.why) + '</div>' : '') + '例：' + g.nos.map(function (n) { return '<a href="#" data-act="open" data-no="' + esc(n) + '" style="color:var(--link,#2f6fdd)">' + esc(n) + '</a>'; }).join('、') + '</div></td><td class="num">' + g.cases + '</td><td class="num">' + g.qty + ' ' + esc(g.unit) + '</td><td><div style="display:flex;gap:6px"><input class="in" data-cqc="' + esc(g.key) + '" type="number" min="0" step="any" placeholder="每' + esc(g.unit || '單位') + '成本（才＝長×寬÷900）" style="width:130px"><button class="btn sm pri" data-act="cqset" data-key="' + esc(g.key) + '">存</button></div></td><td>' + jh + '</td></tr>';
   }).join('') + '</table></div>';
   h += '</div>';
+  var FM = r.formulas || [];
+  h += '<div class="card" style="margin-top:14px"><div style="font-weight:600;font-size:16px">成本公式（才數無條件進位）</div><div style="color:var(--mute);margin:6px 0 10px;line-height:1.7">品項名稱含下列關鍵字、又寫有尺寸（例如 60x90）時，成本自動照公式算。</div>' + (FM.length ? FM.map(function (f) { return '<div style="padding:6px 0;border-top:1px solid var(--line,#eee)"><b>' + esc(f.kw || f.code) + '</b>　' + (f.parts || []).map(function (q) { return (q.n > 1 ? q.n + '×' : '') + (q.baseTo ? q.baseTo + ' 才內 ' + q.base + ' 元，超過每才 ' + q.rate : '每才 ' + q.rate) + ' 元'; }).join('　＋　') + '</div>'; }).join('') : '<div style="color:var(--mute)">還沒有設定公式。</div>') + '</div>';
   h += '<div class="card" style="margin-top:14px" id="cqs"><div style="font-weight:600;font-size:16px">③ 疑似填錯的舊成本（成本高過銷售額，或匯入時標了待確認）</div><div style="color:var(--mute);margin:6px 0 12px;line-height:1.7">按「檢查」才會讀取。作廢只是把舊成本停用（不刪除，手動記的不會動），之後這些案件會回到上面 ② 等你填單位成本；隨時可以整批復原。</div><button class="btn" data-act="cqsus">檢查疑似錯誤</button></div>';
   el.innerHTML = h;
 }
@@ -2559,6 +2577,12 @@ function cqSusGo() {
 function cqSusUndo(id) {
   if (!confirm('確定復原？舊成本會恢復有效。')) return;
   api('costSuspectUndo', { batchId: id }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '復原失敗'), 6000); toast('已復原 ' + r.count + ' 筆'); renderCostQ(); });
+}
+function invEx(a, delNo) {
+  if (!E || !E.pay) return; var cur = (E.pay.invs || []).filter(function (x) { return x.extra; }).map(function (x) { return { no: x.no, date: x.date, amt: x.amt }; });
+  if (a === 'invexdel') { if (!confirm('移除這張發票的登記？收款上記的發票號碼不會被改。')) return; cur = cur.filter(function (x) { return x.no !== delNo; }); }
+  else { var no = String($('#inx_no').value || '').replace(/\s/g, '').toUpperCase(); if (!no) return toast('請填發票號碼'); cur.push({ no: no, date: $('#inx_date').value, amt: Number($('#inx_amt').value) || 0 }); }
+  api('invExtraSave', { no: E.no, list: cur }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '儲存失敗'), 5000); E.pay = r.pay; redrawPay(); toast('已儲存'); });
 }
 function cqGroup(key) { return ((CQ && CQ.groups) || []).filter(function (g) { return g.key === key; })[0]; }
 function cqSet(key) {
@@ -2623,11 +2647,14 @@ function cqVPLink() {
   });
 }
 document.addEventListener('click', function (e) {
+  var tr = e.target.closest('#ovbody tr[data-ovno]');
+  if (tr && !e.target.closest('a,button,input,select,label,[data-act]')) { if (tr.dataset.ovst === 'unbilled') { var cb = tr.querySelector('[data-bk]'); if (cb) { cb.checked = !cb.checked; blSyncSum(); } } else openQuote(tr.dataset.ovno); return; }
   var t = e.target.closest('[data-act]'); if (!t) return; var a = t.dataset.act;
   if (a === 'cqgo') { S.view = 'costq'; render(); }
   else if (a === 'cqauto') cqAuto(); else if (a === 'cqautogo') cqAutoGo(); else if (a === 'cqundo') cqUndo(t.dataset.b);
   else if (a === 'cqset') cqSet(t.dataset.key); else if (a === 'cqjh') cqJh(t.dataset.key);
   else if (a === 'cqvp') cqVP(); else if (a === 'cqvplink') cqVPLink();
+  else if (a === 'invexadd' || a === 'invexdel') invEx(a, t.dataset.no);
   else if (a === 'cqsus') cqSus(); else if (a === 'cqsusgo') cqSusGo(); else if (a === 'cqsusundo') cqSusUndo(t.dataset.b);
   else if (a === 'costimport') openCostImport();
   else if (a === 'costauto') { if (!CS || !CS.auto) return; t.disabled = true; api('costAutoApply', { batchId: newBC(), nos: [CS.no] }).then(function (r) { if (!r || !r.ok) { t.disabled = false; return toast(esc((r && r.msg) || '帶入失敗'), 5000); } CS.auto = null; api('costList', { no: CS.no }).then(function (d) { if (d && d.ok) { CS.d = d; costSync(d); costDraw(); toast('已帶入標準成本'); } }); }); }
