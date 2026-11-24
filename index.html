@@ -335,7 +335,7 @@ var timer; function debounce(fn, ms) { clearTimeout(timer); timer = setTimeout(f
 /* ============ API（正式：GAS；示範：記憶體） ============ */
 /* 讀取快取：看過的資料先秒開，背景再更新；一有寫入動作就全部清掉，避免看到舊的 */
 var RC = {}, RC_ACTS = { doneSummary: 1, vpInfo: 1, vcInfo: 1, vcList: 1, vcPending: 1, ledger: 1, bankList: 1, empList: 1, apList: 1, depositList: 1, listPayments: 1, prepaidAll: 1, finBrief: 1, chaseList: 1, monthRevenue: 1, billingOverview: 1, packSummary: 1, listUsers: 1 };
-var RC_READ = Object.assign({ boot: 1, getQuote: 1, costList: 1, costAutoPreview: 1, costPendingList: 1, vpSuggest: 1, costImportPreview: 1, costExtraPreview: 1, billingPreview: 1, packPlan: 1, packBranch: 1, invAudit: 1, invImportPreview: 1, folderPlan: 1, scanPlan: 1, syncCheck: 1, syncPlan: 1, ragicSyncPreview: 1, vpOrderPreview: 1, bankPreview: 1, vcSuggest: 1, vcCheck: 1 }, RC_ACTS);
+var RC_READ = Object.assign({ boot: 1, getQuote: 1, costList: 1, costAutoPreview: 1, costPendingList: 1, costSuspectList: 1, vpSuggest: 1, costImportPreview: 1, costExtraPreview: 1, billingPreview: 1, packPlan: 1, packBranch: 1, invAudit: 1, invImportPreview: 1, folderPlan: 1, scanPlan: 1, syncCheck: 1, syncPlan: 1, ragicSyncPreview: 1, vpOrderPreview: 1, bankPreview: 1, vcSuggest: 1, vcCheck: 1 }, RC_ACTS);
 function rcBusy() { return !!document.querySelector('#md') || !!E || (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)); }
 function api(act, data) {
   if (DEMO) return Promise.resolve(demoApi(act, data || {}));
@@ -1478,8 +1478,8 @@ function riProcess(tabs) {
       if (cost > 0) rows.push({ q: q, cost: cost, sale: num(r[ix('銷售額')]), cust: String(r[ix('公司名稱')] || ''), proj: pj });
     });
   }
-  var sum7a = {}, sum7b = {}, n7 = 0;
-  if (s7) { var H7 = s7[0], i7 = function (n) { return H7.indexOf(n); }; s7.slice(1).forEach(function (r) { var pj = String(r[i7('專案名稱')] || '').trim(); if (!pj) return; n7++; sum7a[pj] = (sum7a[pj] || 0) + num(r[i7('成本總計')]); sum7b[pj] = (sum7b[pj] || 0) + num(r[i7('成本')]) * num(r[i7('數量')]); }); }
+  var sum7a = {}, sum7b = {}, n7 = 0, bad7 = {};
+  if (s7) { var H7 = s7[0], i7 = function (n) { return H7.indexOf(n); }; s7.slice(1).forEach(function (r) { var pj = String(r[i7('專案名稱')] || '').trim(); if (!pj) return; n7++; sum7a[pj] = (sum7a[pj] || 0) + num(r[i7('成本總計')]); var lc = num(r[i7('成本')]) * num(r[i7('數量')]), lr = num(r[i7('收費總計')]) || num(r[i7('小計')]); sum7b[pj] = (sum7b[pj] || 0) + lc; if (lr > 0 && lc > lr * 1.5) bad7[pj] = 1; }); }
   var ex = [], sum8 = {};
   if (s8) {
     var H8 = s8[0], i8 = function (n) { return H8.indexOf(n); };
@@ -1492,6 +1492,7 @@ function riProcess(tabs) {
     });
   }
   RI.n7 = n7; RI.skipFixed = s8 ? s8.slice(1).filter(function (r) { return !String(r[H8 && H8.indexOf('專案名稱')] || '').trim(); }).length : 0;
+  rows.forEach(function (x) { if (x.proj && bad7[x.proj]) x.bad = 1; });
   $('#rib').innerHTML = '<div class="empty"><span class="spin"></span>比對中…（總成本 ' + rows.length + ' 筆、補充成本 ' + ex.length + ' 筆）</div>';
   Promise.all([rows.length ? api('costImportPreview', { rows: rows }) : Promise.resolve({ ok: true, items: [], count: {} }), ex.length ? api('costExtraPreview', { rows: ex }) : Promise.resolve({ ok: true, items: [], count: {} })]).then(function (rs) {
     if (!rs[0] || !rs[0].ok) { $('#rib').innerHTML = '<div style="color:var(--bad)">' + esc((rs[0] && rs[0].msg) || '比對失敗') + '</div>'; return; }
@@ -2528,23 +2529,47 @@ function cqDraw() {
   var G = r.groups || [];
   h += '<div class="card"><div style="font-weight:600;font-size:16px">② 還沒有標準成本的品項（' + G.length + ' 項，影響 ' + r.pendingCases + ' 張案件）</div><div style="color:var(--mute);margin:6px 0 12px;line-height:1.7">同名品項只問一次：填「每個銷售單位的成本」（例如 DM 以 1 束賣，就填 1 束的成本），之後所有案件自動帶入。可連到建豪的，直接用建豪最近一次單價，建豪漲價時會自動跟著更新（舊案件不動）。</div>';
   if (!G.length) h += '<div style="color:var(--mute)">都有標準成本了。</div>';
-  else h += '<div class="sc"><table class="ls nolink"><tr><th>品項</th><th class="num">案件數</th><th class="num">數量合計</th><th>每個銷售單位的成本</th><th>連建豪</th></tr>' + G.map(function (g) {
+  else h += '<div class="sc"><table class="ls nolink"><tr><th>品項（單位）</th><th class="num">案件數</th><th class="num">數量合計</th><th>每個銷售單位的成本</th><th>連建豪</th></tr>' + G.map(function (g) {
     var sg = g.suggest, jh = sg ? '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' + (g.code ? '<span style="font-size:13px;color:var(--mute)">' + esc(sg.date) + ' 單價 ' + money(sg.unitPrice) + '／' + esc(sg.unit || '份') + '，每個銷售單位含</span><input class="in" data-cqp="' + esc(g.key) + '" value="' + esc(g.rule ? g.rule.per : 1) + '" type="number" min="0" step="any" style="width:70px"><span style="font-size:13px">份</span><button class="btn sm" data-act="cqjh" data-key="' + esc(g.key) + '">套用</button>' : '<span style="font-size:13px;color:var(--mute)">建豪有類似品項，請先到收費明細建立商品編號</span>') + '</div>' : '<span style="color:var(--mute);font-size:13px">建豪沒有類似的訂單</span>';
-    return '<tr><td><b>' + esc(g.name || '(未命名)') + '</b>' + (g.ship ? ' ' + pill('運費・請確認標準', 'p-warn') : '') + '<div style="font-size:12.5px;color:var(--mute)">' + (g.code ? esc(g.code) + '　' : '') + '例：' + g.nos.map(esc).join('、') + '</div></td><td class="num">' + g.cases + '</td><td class="num">' + g.qty + ' ' + esc(g.unit) + '</td><td><div style="display:flex;gap:6px"><input class="in" data-cqc="' + esc(g.key) + '" type="number" min="0" step="any" placeholder="每' + esc(g.unit || '單位') + '成本" style="width:130px"><button class="btn sm pri" data-act="cqset" data-key="' + esc(g.key) + '">存</button></div></td><td>' + jh + '</td></tr>';
+    return '<tr><td><b>' + esc(g.name || '(未命名)') + '</b>' + (g.unit ? ' <span style="color:var(--mute)">／' + esc(g.unit) + '</span>' : '') + (g.ship ? ' ' + pill('運費・請確認標準', 'p-warn') : '') + '<div style="font-size:12.5px;color:var(--mute)">' + (g.code ? esc(g.code) + '　' : '') + (g.why ? '<div style="font-size:12.5px;color:var(--bad)">' + esc(g.why) + '</div>' : '') + '例：' + g.nos.map(function (n) { return '<a href="#" data-act="open" data-no="' + esc(n) + '" style="color:var(--link,#2f6fdd)">' + esc(n) + '</a>'; }).join('、') + '</div></td><td class="num">' + g.cases + '</td><td class="num">' + g.qty + ' ' + esc(g.unit) + '</td><td><div style="display:flex;gap:6px"><input class="in" data-cqc="' + esc(g.key) + '" type="number" min="0" step="any" placeholder="每' + esc(g.unit || '單位') + '成本（才＝長×寬÷900）" style="width:130px"><button class="btn sm pri" data-act="cqset" data-key="' + esc(g.key) + '">存</button></div></td><td>' + jh + '</td></tr>';
   }).join('') + '</table></div>';
   h += '</div>';
+  h += '<div class="card" style="margin-top:14px" id="cqs"><div style="font-weight:600;font-size:16px">③ 疑似填錯的舊成本（成本高過銷售額，或匯入時標了待確認）</div><div style="color:var(--mute);margin:6px 0 12px;line-height:1.7">按「檢查」才會讀取。作廢只是把舊成本停用（不刪除，手動記的不會動），之後這些案件會回到上面 ② 等你填單位成本；隨時可以整批復原。</div><button class="btn" data-act="cqsus">檢查疑似錯誤</button></div>';
   el.innerHTML = h;
+}
+var SUS = null;
+function cqSus() {
+  var el = $('#cqs'); if (!el) return; el.innerHTML = '<div class="empty"><span class="spin"></span>檢查中…</div>';
+  api('costSuspectList', {}).then(function (r) {
+    if (!r || !r.ok) return el.innerHTML = '<div style="color:var(--bad)">' + esc((r && r.msg) || '讀取失敗') + '</div>'; SUS = r;
+    if (!r.rows.length) return el.innerHTML = '<div style="font-weight:600;font-size:16px">③ 疑似填錯的舊成本</div><div style="color:var(--mute);margin-top:8px">目前沒有。</div>';
+    el.innerHTML = '<div style="font-weight:600;font-size:16px">③ 疑似填錯的舊成本（' + r.rows.length + ' 張）</div><div style="color:var(--mute);margin:6px 0 12px;line-height:1.7">勾選要作廢的案件（舊成本留存可復原）。作廢後請到 ② 填單位成本，會用新成本重算。</div><div class="sc"><table class="ls nolink"><tr><th></th><th>單號</th><th>公司／案件</th><th class="num">銷售額</th><th class="num">現有成本</th></tr>' + r.rows.map(function (x) { return '<tr><td><input type="checkbox" data-sus="' + esc(x.no) + '" checked style="width:18px;height:18px;accent-color:#f2a53a"></td><td><a href="#" data-act="open" data-no="' + esc(x.no) + '">' + esc(x.no) + '</a></td><td>' + esc(x.company) + '<div style="font-size:12.5px;color:var(--mute)">' + esc(x.project) + '</div></td><td class="num">' + money(x.sales) + '</td><td class="num">' + money(x.cost) + '</td></tr>'; }).join('') + '</table></div><div style="text-align:right;margin-top:14px"><button class="btn pri" data-act="cqsusgo">作廢勾選案件的舊成本</button></div>';
+  });
+}
+function cqSusGo() {
+  var nos = []; document.querySelectorAll('#cqs [data-sus]:checked').forEach(function (c) { nos.push(c.dataset.sus); });
+  if (!nos.length) return toast('沒有勾選案件'); if (!confirm('即將作廢 ' + nos.length + ' 張案件的匯入成本（不刪除，可整批復原），確定嗎？')) return;
+  var id = newBC(), btn = $('[data-act=cqsusgo]'); btn.disabled = true;
+  api('costSuspectApply', { batchId: id, nos: nos }).then(function (r) {
+    if (!r || !r.ok) { btn.disabled = false; return toast(esc((r && r.msg) || '作廢失敗'), 6000); }
+    $('#cqs').innerHTML = '<div style="font-weight:600;font-size:16px">已作廢 ' + r.count + ' 張案件的舊成本</div><div style="color:var(--mute);margin:8px 0">這些案件已回到 ② 等你填成本。</div><button class="btn" data-act="cqsusundo" data-b="' + esc(id) + '">復原這次作廢</button>';
+    toast('已作廢，回到待補成本');
+  });
+}
+function cqSusUndo(id) {
+  if (!confirm('確定復原？舊成本會恢復有效。')) return;
+  api('costSuspectUndo', { batchId: id }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '復原失敗'), 6000); toast('已復原 ' + r.count + ' 筆'); renderCostQ(); });
 }
 function cqGroup(key) { return ((CQ && CQ.groups) || []).filter(function (g) { return g.key === key; })[0]; }
 function cqSet(key) {
   var g = cqGroup(key), inp = document.querySelector('[data-cqc="' + key.replace(/"/g, '\\"') + '"]'), v = Number(inp && inp.value);
   if (!g) return; if (!(v > 0)) return toast('請填大於 0 的成本');
-  api('itemCostSet', { code: g.code, name: g.name, cost: v }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '儲存失敗'), 6000); CQ = r; cqDraw(); toast('已記下「' + esc(g.name) + '」的標準成本'); });
+  api('itemCostSet', { code: g.code, name: g.name, unit: g.unit, cost: v }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '儲存失敗'), 6000); CQ = r; cqDraw(); toast('已記下「' + esc(g.name) + '」的標準成本'); });
 }
 function cqJh(key) {
   var g = cqGroup(key), inp = document.querySelector('[data-cqp="' + key.replace(/"/g, '\\"') + '"]'), per = Number(inp && inp.value) || 1;
   if (!g || !g.suggest || !g.code) return;
-  var rules = (CQ.rules || []).filter(function (x) { return x.code !== g.code; }); rules.push({ code: g.code, kw: g.suggest.kw, per: per });
+  var rules = (CQ.rules || []).filter(function (x) { return !(x.code === g.code && String(x.unit || '') === g.unit); }); rules.push({ code: g.code, unit: g.unit, kw: g.suggest.kw, per: per });
   api('vpStdRuleSave', { rules: rules }).then(function (r) { if (!r || !r.ok) return toast(esc((r && r.msg) || '儲存失敗'), 6000); CQ = r; cqDraw(); toast('已連到建豪，標準成本 ' + (r.stdUpdated || 0) + ' 項已更新'); });
 }
 function cqAuto() {
@@ -2603,6 +2628,7 @@ document.addEventListener('click', function (e) {
   else if (a === 'cqauto') cqAuto(); else if (a === 'cqautogo') cqAutoGo(); else if (a === 'cqundo') cqUndo(t.dataset.b);
   else if (a === 'cqset') cqSet(t.dataset.key); else if (a === 'cqjh') cqJh(t.dataset.key);
   else if (a === 'cqvp') cqVP(); else if (a === 'cqvplink') cqVPLink();
+  else if (a === 'cqsus') cqSus(); else if (a === 'cqsusgo') cqSusGo(); else if (a === 'cqsusundo') cqSusUndo(t.dataset.b);
   else if (a === 'costimport') openCostImport();
   else if (a === 'costauto') { if (!CS || !CS.auto) return; t.disabled = true; api('costAutoApply', { batchId: newBC(), nos: [CS.no] }).then(function (r) { if (!r || !r.ok) { t.disabled = false; return toast(esc((r && r.msg) || '帶入失敗'), 5000); } CS.auto = null; api('costList', { no: CS.no }).then(function (d) { if (d && d.ok) { CS.d = d; costSync(d); costDraw(); toast('已帶入標準成本'); } }); }); }
 });
